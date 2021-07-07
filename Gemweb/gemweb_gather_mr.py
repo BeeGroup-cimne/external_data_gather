@@ -49,10 +49,7 @@ class Gemweb_gather(MRJob):
 
                 update_info['$set']["timeseries.{}.{}.datetime_to".format(device, freq['name'])] = data[-1]['datetime']
 
-                if 'timeseries' not in self.connection and
-                device not in 'datetime_from' not self.connection['timeseries'] and \
-                freq['name'] not in self.connection['timeseries'][device] and \
-                'datetime_from' not in self.connection['timeseries'][device][freq['name']]:
+                if 'timeseries' not in self.connection and device not in 'datetime_from' not self.connection['timeseries'] and freq['name'] not in self.connection['timeseries'][device] and 'datetime_from' not in self.connection['timeseries'][device][freq['name']]:
                     update_info['$set']["timeseries.{}.{}.datetime_from".format(device, freq['name'])] = data[0][
                         'datetime']
             else:

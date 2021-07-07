@@ -49,12 +49,17 @@ class Gemweb_gather(MRJob):
 
                 update_info['$set']["timeseries.{}.{}.datetime_to".format(device, freq['name'])] = data[-1]['datetime']
 
-                if 'timeseries' not in self.connection and device not in 'datetime_from' not self.connection['timeseries'] and freq['name'] not in self.connection['timeseries'][device] and 'datetime_from' not in self.connection['timeseries'][device][freq['name']]:
+                add_d_from = True
+                if 'timeseries' in self.connection:
+                    if device in self.connection['timeseries']:
+                        if freq['name'] in self.connection['timeseries'][device]:
+                            if 'datetime_from' in self.connection['timeseries'][device][freq['name']]:
+                                add_d_from = False
+                if add_d_from:
                     update_info['$set']["timeseries.{}.{}.datetime_from".format(device, freq['name'])] = data[0][
-                        'datetime']
+                                'datetime']
             else:
-                if not 'timeseries' in self.connection and not device in self.connection['timeseries']:
-                    update_info['$set']["timeseries.{}.{}.error".format(device, freq['name'])] = "no data"
+                update_info['$set']["timeseries.{}.{}.error".format(device, freq['name'])] = "no new data"
 
             mongo = connection_mongo(self.mongo_conf)
             mongo[self.data_source['info']].update_one({"_id": self.connection["_id"]}, update_info)

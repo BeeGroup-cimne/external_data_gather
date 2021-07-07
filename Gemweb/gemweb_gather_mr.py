@@ -40,6 +40,7 @@ class Gemweb_gather(MRJob):
                                               date_from=datetime(2019, 1, 1),
                                               date_to=datetime.now(),
                                               period=frequencies[freq]['freq'])
+            self.increment_counter(device, "gathered", 1)
         except:
             data = []
         update_info['$set']["timeseries.{}.{}.updated".format(device, freq)] = datetime.utcnow()
@@ -53,6 +54,7 @@ class Gemweb_gather(MRJob):
             hbase = connection_hbase(self.hbase_conf)
             htable = get_HTable(hbase, "{}_{}_{}".format(self.data_source["hbase_name"], freq, user), {"v": {}, "info": {}})
             save_to_hbase(htable, data, [("v", ["value"]), ("info", ["measurement_end"])], row_fields=['building', 'measurement_start'])
+            self.increment_counter(device, "saved", 1)
 
             update_info['$set']["timeseries.{}.{}.datetime_to".format(device, freq)] = data[-1]['datetime']
 
@@ -71,6 +73,7 @@ class Gemweb_gather(MRJob):
 
         mongo = connection_mongo(self.mongo_conf)
         mongo[self.data_source['info']].update_one({"_id": self.connection["_id"]}, update_info)
+        self.increment_counter(device, "finished", 1)
 
 
 if __name__ == '__main__':

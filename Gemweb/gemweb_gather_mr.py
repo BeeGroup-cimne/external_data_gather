@@ -9,7 +9,7 @@ from utils import *
 
 
 class Gemweb_gather(MRJob):
-    def mapper_init(self):
+    def reducer_init(self):
         fn = glob.glob('*.json')
         config = pickle.load(open(fn[0], 'rb'))
         self.connection = config['connection']

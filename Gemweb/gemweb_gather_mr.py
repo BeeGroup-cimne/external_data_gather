@@ -12,10 +12,10 @@ class Gemweb_gather(MRJob):
     def mapper_init(self):
         fn = glob.glob('*.json')
         config = pickle.load(open(fn[0], 'rb'))
-        self.hbase_conf = config['hbase']
-        self.mongo_conf = config['mongo_db']
         self.connection = config['connection']
-        self.data_source = config['data_source']
+        self.hbase_conf = config['config']['hbase_connection']
+        self.mongo_conf = config['config']['mongo_connection']
+        self.data_source = config['config']['data_source']
 
     def mapper(self, _, device):
         # call mapreduce with input file as the supplies and performs the following job

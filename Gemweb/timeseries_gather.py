@@ -44,7 +44,7 @@ for connection in mongo[data_source['info']].find({}):
     cursor.execute(save_id_to_file)
 
     MOUNTS='YARN_CONTAINER_RUNTIME_DOCKER_MOUNTS=/hadoop_stack:/hadoop_stack:ro'
-    IMAGE='YARN_CONTAINER_RUNTIME_DOCKER_IMAGE=beerepo.tech.beegroup-cimne.com:5000/python-mr'
+    IMAGE='YARN_CONTAINER_RUNTIME_DOCKER_IMAGE=beerepo.tech.beegroup-cimne.com:5000/python3-mr'
     RUNTYPE='YARN_CONTAINER_RUNTIME_TYPE=docker'
     mr_job = Gemweb_gather(args=[
         '-r', 'hadoop', 'hdfs://{}'.format("/tmp/supplies_aux/"), '--file', f.name,

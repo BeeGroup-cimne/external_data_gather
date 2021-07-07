@@ -45,7 +45,7 @@ class Gemweb_gather(MRJob):
 
             self.connection['timeseries'][device][freq['name']]['updated'] = datetime.utcnow()
 
-            if len(data > 0):
+            if len(data) > 0:
                 for d in data:
                     d['building'] = device
                     d['measurement_start'] = int(d['datetime'].timestamp())

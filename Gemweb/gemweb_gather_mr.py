@@ -5,12 +5,13 @@ import gemweb
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
 import pickle
+from utils import *
 
 
 class Gemweb_gather(MRJob):
     def mapper_init(self):
         fn = glob.glob('*.json')
-        config = pickle.load(open(fn[0]), 'rb')
+        config = pickle.load(open(fn[0], 'rb'))
         self.hbase_conf = config['hbase']
         self.mongo_conf = config['mongo_db']
         self.connection = config['connection']
@@ -21,7 +22,7 @@ class Gemweb_gather(MRJob):
         gemweb.gemweb.connection(self.connection['username'], self.connection['password'], timezone="UTC")
 
         frequencies = [{'name': 'data_15m', 'freq': 'quart-horari', 'step': relativedelta(minutes=15)},
-                       {'name': 'data_1h', 'freq': 'horari','step': relativedelta(hours=1)},
+                       {'name': 'data_1h', 'freq': 'horari', 'step': relativedelta(hours=1)},
                        {'name': 'data_daily', 'freq': 'diari', 'step': relativedelta(days=1)},
                        {'name': 'data_month', 'freq': 'mensual', 'step': relativedelta(months=1)}]
 
@@ -48,10 +49,10 @@ class Gemweb_gather(MRJob):
                 for d in data:
                     d['building'] = device
                     d['measurement_start'] = int(d['datetime'].timestamp())
-                    d['measurement_end'] = int(( d['datetime'] + freq['step']).timestamp())
+                    d['measurement_end'] = int((d['datetime'] + freq['step']).timestamp())
                 # save obtained data to hbase
-                hbase = hbase = connection_hbase(hbase_conf)
-                htable = get_HTable(hbase, "{}_{}_{}".format(data_source["hbase_name"], freq['name'], user), {"v": {}, "info": {}})
+                hbase = connection_hbase(self.hbase_conf)
+                htable = get_HTable(hbase, "{}_{}_{}".format(self.data_source["hbase_name"], freq['name'], user), {"v": {}, "info": {}})
                 save_to_hbase(htable, data, [("v", ["value"]), ("info", ["measurement_end"])], row_fields=['building', 'measurement_start'])
 
                 self.connection['timeseries'][device][freq['name']]['datetime_to'] = data[-1]['datetime']
@@ -66,4 +67,4 @@ class Gemweb_gather(MRJob):
 
 
 if __name__ == '__main__':
-    MRWordFrequencyCount.run()
+    Gemweb_gather.run()

@@ -39,7 +39,7 @@ class Gemweb_gather(MRJob):
         user = self.connection['user']
         mongo = connection_mongo(self.mongo_conf)
         mongo['debug'].update_one({"_id": device}, {"$set": {"{}.going_to_gather".format(freq): 1}}, upsert=True)
-        date_from = datetime(2019, 1, 1)
+        date_from = datetime(2021, 6, 1)
         date_to = datetime.now()
         data = []
         while date_from < date_to:

@@ -45,10 +45,10 @@ class Gemweb_gather(MRJob):
         while date_from < date_to:
             date_to2 = date_from + relativedelta(months=6) if date_from + relativedelta(months=6) < date_to else date_to
             try:
-                data_w = gemweb.gemweb.gemweb_query(gemweb.ENDPOINTS.GET_METERING, id_=device,
-                                                  date_from=date_from,
-                                                  date_to=date_to2,
-                                                  period=frequencies[freq]['freq'])
+                #data_w = gemweb.gemweb.gemweb_query(gemweb.ENDPOINTS.GET_METERING, id_=device,
+                 #                                 date_from=date_from,
+                 #                                 date_to=date_to2,
+                 #                                 period=frequencies[freq]['freq'])
                 self.increment_counter(device, "gathered", 1)
             except:
                 data_w = []

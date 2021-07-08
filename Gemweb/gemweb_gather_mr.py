@@ -37,18 +37,28 @@ class Gemweb_gather(MRJob):
         }
 
         user = self.connection['user']
-        try:
-            mongo = connection_mongo(self.mongo_conf)
-            mongo['debug'].update_one({"_id": device}, {"$set": {"{}.going_to_gather".format(freq): 1}}, upsert=True)
-            data = [] #gemweb.gemweb.gemweb_query(gemweb.ENDPOINTS.GET_METERING, id_=device,
-                   #                           date_from=datetime(2019, 1, 1),
-                   #                           date_to=datetime.now(),
-                   #                           period=frequencies[freq]['freq'])
-            self.increment_counter(device, "gathered", 1)
-            mongo = connection_mongo(self.mongo_conf)
-            mongo['debug'].update_one({"_id": device}, {"$set": {"{}.gathered".format(freq): 1}}, upsert=True)
-        except:
-            data = []
+        mongo = connection_mongo(self.mongo_conf)
+        mongo['debug'].update_one({"_id": device}, {"$set": {"{}.going_to_gather".format(freq): 1}}, upsert=True)
+        date_from = datetime(2019, 1, 1)
+        date_to = datetime.now()
+        data = []
+        while date_from < date_to:
+            date_to2 = date_from + relativedelta(months=6) if date_from + relativedelta(months=6) < date_to else date_to
+            try:
+                data_w = gemweb.gemweb.gemweb_query(gemweb.ENDPOINTS.GET_METERING, id_=device,
+                                                  date_from=date_from,
+                                                  date_to=date_to2,
+                                                  period=frequencies[freq]['freq'])
+                self.increment_counter(device, "gathered", 1)
+            except:
+                data_w = []
+            data.append(data_w)
+            date_from = date_to2
+
+        self.increment_counter(device, "gathered", 1)
+        mongo = connection_mongo(self.mongo_conf)
+        mongo['debug'].update_one({"_id": device}, {"$set": {"{}.gathered".format(freq): 1}}, upsert=True)
+
         update_info['$set']["timeseries.{}.{}.updated".format(device, freq)] = datetime.utcnow()
 
         if len(data) > 0:

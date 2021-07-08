@@ -45,7 +45,7 @@ class Gemweb_gather(MRJob):
         while date_from < date_to:
             date_to2 = date_from + relativedelta(months=6) if date_from + relativedelta(months=6) < date_to else date_to
             try:
-                data=[]
+                data_w = []
                 #data_w = gemweb.gemweb.gemweb_query(gemweb.ENDPOINTS.GET_METERING, id_=device,
                  #                                 date_from=date_from,
                  #                                 date_to=date_to2,

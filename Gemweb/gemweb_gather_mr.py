@@ -40,10 +40,10 @@ class Gemweb_gather(MRJob):
         try:
             mongo = connection_mongo(self.mongo_conf)
             mongo['debug'].update_one({"_id": device}, {"$set": {"{}.going_to_gather".format(freq): 1}}, upsert=True)
-            data = gemweb.gemweb.gemweb_query(gemweb.ENDPOINTS.GET_METERING, id_=device,
-                                              date_from=datetime(2019, 1, 1),
-                                              date_to=datetime.now(),
-                                              period=frequencies[freq]['freq'])
+            data = [] #gemweb.gemweb.gemweb_query(gemweb.ENDPOINTS.GET_METERING, id_=device,
+                   #                           date_from=datetime(2019, 1, 1),
+                   #                           date_to=datetime.now(),
+                   #                           period=frequencies[freq]['freq'])
             self.increment_counter(device, "gathered", 1)
             mongo = connection_mongo(self.mongo_conf)
             mongo['debug'].update_one({"_id": device}, {"$set": {"{}.gathered".format(freq): 1}}, upsert=True)

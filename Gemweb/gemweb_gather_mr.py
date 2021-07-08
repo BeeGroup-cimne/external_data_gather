@@ -53,7 +53,7 @@ class Gemweb_gather(MRJob):
                 self.increment_counter(device, "gathered", 1)
             except:
                 data_w = []
-            data.append(data_w)
+            data.extend(data_w)
             date_from = date_to2
 
         self.increment_counter(device, "gathered", 1)

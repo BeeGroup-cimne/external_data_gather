@@ -18,7 +18,7 @@ class Gemweb_gather(MRJob):
         self.data_source = config['config']['data_source']
 
     def mapper(self, _, device):
-        frequencies = ['data_15m', 'data_1h', 'data_daily', 'data_month']
+        frequencies = ['data_daily'] #['data_15m', 'data_1h', 'data_daily', 'data_month']
         for k in frequencies:
             yield "{}~{}".format(device, k), None
 

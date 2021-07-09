@@ -94,7 +94,7 @@ class Gemweb_gather(MRJob):
         mongo['debug'].update_one({"_id": device}, {"$set": {"{}.finished".format(freq): 1}}, upsert=True)
 
         mongo = connection_mongo(self.mongo_conf)
-        mongo['gemweb_timeseries_info'].update_one({"_id": self.connection["_id"]}, update_info)
+        mongo['gemweb_timeseries_info'].update_one({"_id": self.connection["_id"]}, update_info, upsert=True)
         self.increment_counter("finished", 'device', 1)
         mongo = connection_mongo(self.mongo_conf)
         mongo['debug'].update_one({"_id": device}, {"$set": {"{}.finished".format(freq): 1}}, upsert=True)

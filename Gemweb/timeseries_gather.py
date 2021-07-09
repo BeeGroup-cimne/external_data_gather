@@ -29,7 +29,7 @@ for connection in mongo[data_source['info']].find({}):
     f.close()
 
     # create supplies hdfs file to perform mapreduce
-    create_table_hbase = """CREATE EXTERNAL TABLE supplies_aux(id string, value string) 
+    create_table_hbase = """CREATE EXTERNAL TEMPORARY TABLE supplies_aux(id string, value string) 
                             STORED BY 'org.apache.hadoop.hive.hbase.HBaseStorageHandler' 
                             WITH SERDEPROPERTIES (
                                 'hbase.table.name' = 'raw_data:gemweb_supplies_icaen', 
@@ -42,7 +42,7 @@ for connection in mongo[data_source['info']].find({}):
 
     cursor.execute(create_table_hbase)
     cursor.execute(save_id_to_file)
-
+    cursor.close()
     MOUNTS='YARN_CONTAINER_RUNTIME_DOCKER_MOUNTS=/hadoop_stack:/hadoop_stack:ro'
     IMAGE='YARN_CONTAINER_RUNTIME_DOCKER_IMAGE=beerepo.tech.beegroup-cimne.com:5000/python3-mr'
     RUNTYPE='YARN_CONTAINER_RUNTIME_TYPE=docker'

@@ -39,14 +39,16 @@ class Gemweb_gather(MRJob):
         user = self.connection['user']
         mongo = connection_mongo(self.mongo_conf)
         mongo['debug'].update_one({"_id": device}, {"$set": {"{}.going_to_gather".format(freq): 1}}, upsert=True)
-        date_from = datetime(2021, 6, 1)
+        date_from = datetime(2019, 1, 1)
         date_to = datetime.now()
         data_t = []
         while date_from < date_to:
             date_to2 = date_from + relativedelta(months=1)
             try:
                 x2 = gemweb.gemweb.gemweb_query(gemweb.ENDPOINTS.GET_METERING, id_=device,
-                                         date_from=date_from, date_to=date_to2, period=frequencies[freq['freq']])
+                                                date_from=date_from,
+                                                date_to=date_to2,
+                                                period=frequencies[freq['freq']])
             except Exception as e:
                 x2 = []
             self.increment_counter('gathered', 'device', 1)

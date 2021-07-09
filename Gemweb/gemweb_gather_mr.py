@@ -49,7 +49,7 @@ class Gemweb_gather(MRJob):
                                          date_from=date_from, date_to=date_to2, period=frequencies[freq['freq']])
             except Exception as e:
                 x2 = []
-            self.increment_counter(device, "gathered", 1)
+            self.increment_counter('gathered', device, 1)
             date_from = date_to2 + relativedelta(days=1)
             data_t.append(x2)
 
@@ -73,7 +73,7 @@ class Gemweb_gather(MRJob):
             save_to_hbase(htable, data, [("v", ["value"]), ("info", ["measurement_end"])], row_fields=['building', 'measurement_start'])
             mongo = connection_mongo(self.mongo_conf)
             mongo['debug'].update_one({"_id": device}, {"$set": {"{}.saving".format(freq): 1}}, upsert=True)
-            self.increment_counter(device, "saved", 1)
+            self.increment_counter('saved', device, 1)
 
             update_info['$set']["timeseries.{}.{}.datetime_to".format(device, freq)] = data[-1]['datetime']
 
@@ -95,7 +95,7 @@ class Gemweb_gather(MRJob):
 
         mongo = connection_mongo(self.mongo_conf)
         mongo['gemweb_timeseries_info'].update_one({"_id": self.connection["_id"]}, update_info)
-        self.increment_counter(device, "finished", 1)
+        self.increment_counter("finished", device, 1)
 
 
 if __name__ == '__main__':

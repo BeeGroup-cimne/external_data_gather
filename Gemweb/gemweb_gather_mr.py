@@ -31,9 +31,9 @@ class Gemweb_gather(MRJob):
         update_info = {"$set": {}}
         frequencies = {
                           # 'data_15m': {'freq': 'quart-horari', 'step': relativedelta(minutes=15)},
-                          'data_1h': {'freq': 'horari', 'step': relativedelta(hours=1)},
-                          'data_daily': {'freq': 'diari', 'step': relativedelta(days=1)},
-                          'data_month': {'freq': 'mensual', 'step': relativedelta(months=1)}
+                          'data_1h': {'freq': 'horari', 'step': relativedelta(hours=1), 'part': relativedelta(days=10)},
+                          'data_daily': {'freq': 'diari', 'step': relativedelta(days=1), 'part': relativedelta(days=30)},
+                          'data_month': {'freq': 'mensual', 'step': relativedelta(months=1), 'part': relativedelta(months=3)}
         }
 
         user = self.connection['user']
@@ -43,12 +43,12 @@ class Gemweb_gather(MRJob):
         date_to = datetime.now()
         data_t = []
         while date_from < date_to:
-            date_to2 = date_from + relativedelta(months=1)
+            date_to2 = date_from + frequencies[freq]['part']
             try:
                 x2 = gemweb.gemweb.gemweb_query(gemweb.ENDPOINTS.GET_METERING, id_=device,
                                                 date_from=date_from,
                                                 date_to=date_to2,
-                                                period=frequencies[freq['freq']])
+                                                period=frequencies[freq]['freq'])
             except Exception as e:
                 x2 = []
             self.increment_counter('gathered', 'device', 1)

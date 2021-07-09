@@ -54,7 +54,8 @@ class Gemweb_gather(MRJob):
             data_t.append(x2)
 
         data = []
-        [data.extend(x) for x in data_t]
+        for x in data_t:
+            data.extend(x)
 
         mongo = connection_mongo(self.mongo_conf)
         mongo['debug'].update_one({"_id": device}, {"$set": {"{}.gathered".format(freq): 1}}, upsert=True)

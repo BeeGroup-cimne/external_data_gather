@@ -36,7 +36,7 @@ for connection in mongo[data_source['info']].find({}):
                                 "hbase.columns.mapping" = ":key,info:cups"
                             )"""
 
-    save_id_to_file = """INSERT OVERWRITE DIRECTORY '/tmp/supplies_aux/' SELECT id FROM supplies_aux limit 10"""
+    save_id_to_file = """INSERT OVERWRITE DIRECTORY '/tmp/supplies_aux/' SELECT id FROM supplies_aux"""
 
     cursor = hive.Connection("master1.internal", 10000, database="gemweb").cursor()
 

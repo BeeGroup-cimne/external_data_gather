@@ -18,7 +18,7 @@ class Gemweb_gather(MRJob):
         self.data_source = config['config']['data_source']
 
     def mapper(self, _, device):
-        frequencies = ['data_15m', 'data_1h', 'data_daily', 'data_month']
+        frequencies = ['data_1h', 'data_daily', 'data_month']  # 'data_15m'
         for k in frequencies:
             yield "{}~{}".format(device, k), None
 
@@ -30,7 +30,7 @@ class Gemweb_gather(MRJob):
         gemweb.gemweb.connection(self.connection['username'], self.connection['password'], timezone="UTC")
         update_info = {"$set": {}}
         frequencies = {
-                          'data_15m': {'freq': 'quart-horari', 'step': relativedelta(minutes=15)},
+                          # 'data_15m': {'freq': 'quart-horari', 'step': relativedelta(minutes=15)},
                           'data_1h': {'freq': 'horari', 'step': relativedelta(hours=1)},
                           'data_daily': {'freq': 'diari', 'step': relativedelta(days=1)},
                           'data_month': {'freq': 'mensual', 'step': relativedelta(months=1)}
@@ -41,22 +41,21 @@ class Gemweb_gather(MRJob):
         mongo['debug'].update_one({"_id": device}, {"$set": {"{}.going_to_gather".format(freq): 1}}, upsert=True)
         date_from = datetime(2021, 6, 1)
         date_to = datetime.now()
-        data = []
+        data_t = []
         while date_from < date_to:
-            date_to2 = date_from + relativedelta(months=6) if date_from + relativedelta(months=6) < date_to else date_to
+            date_to2 = date_from + relativedelta(months=1)
             try:
-                data_w = []
-                #data_w = gemweb.gemweb.gemweb_query(gemweb.ENDPOINTS.GET_METERING, id_=device,
-                 #                                 date_from=date_from,
-                 #                                 date_to=date_to2,
-                 #                                 period=frequencies[freq]['freq'])
-                self.increment_counter(device, "gathered", 1)
-            except:
-                data_w = []
-            data.extend(data_w)
-            date_from = date_to2
+                x2 = gemweb.gemweb.gemweb_query(gemweb.ENDPOINTS.GET_METERING, id_=device,
+                                         date_from=date_from, date_to=date_to2, period=frequencies[freq['freq']])
+            except Exception as e:
+                x2 = []
+            self.increment_counter(device, "gathered", 1)
+            date_from = date_to2 + relativedelta(days=1)
+            data_t.append(x2)
 
-        self.increment_counter(device, "gathered", 1)
+        data = []
+        [data.extend(x) for x in data_t]
+
         mongo = connection_mongo(self.mongo_conf)
         mongo['debug'].update_one({"_id": device}, {"$set": {"{}.gathered".format(freq): 1}}, upsert=True)
 

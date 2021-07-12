@@ -6,8 +6,7 @@ from datetime import datetime
 from dateutil.relativedelta import relativedelta
 import pickle
 import pytz
-from ut
-ils import *
+from utils import *
 
 
 class Gemweb_gather(MRJob):

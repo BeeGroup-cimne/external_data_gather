@@ -31,8 +31,8 @@ class Gemweb_gather(MRJob):
         update_info = {"$set": {}}
         frequencies = {
                           # 'data_15m': {'freq': 'quart-horari', 'step': relativedelta(minutes=15)},
-                          'data_1h': {'freq': 'horari', 'step': relativedelta(hours=1), 'part': relativedelta(days=10)},
-                          'data_daily': {'freq': 'diari', 'step': relativedelta(days=1), 'part': relativedelta(days=30)},
+                          'data_1h': {'freq': 'horari', 'step': relativedelta(hours=1), 'part': relativedelta(days=1)},
+                          'data_daily': {'freq': 'diari', 'step': relativedelta(days=1), 'part': relativedelta(days=10)},
                           'data_month': {'freq': 'mensual', 'step': relativedelta(months=1), 'part': relativedelta(months=3)}
         }
 

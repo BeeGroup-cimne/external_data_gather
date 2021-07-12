@@ -24,10 +24,10 @@ class Gemweb_gather(MRJob):
 
     def reducer(self, launch, _):
         device, freq = launch.split("~")
-        mongo = connection_mongo(self.mongo_conf)
-        mongo['debug'].update_one({"_id": device}, {"$set": {"{}.started".format(freq): 1}}, upsert=True)
         # call mapreduce with input file as the supplies and performs the following job
         gemweb.gemweb.connection(self.connection['username'], self.connection['password'], timezone="UTC")
+        mongo = connection_mongo(self.mongo_conf)
+        device_mongo = mongo['gemweb_timeseries_info'].find_one({"_id": device})
         update_info = {"$set": {}}
         frequencies = {
                           # 'data_15m': {'freq': 'quart-horari', 'step': relativedelta(minutes=15)},
@@ -37,8 +37,6 @@ class Gemweb_gather(MRJob):
         }
 
         user = self.connection['user']
-        mongo = connection_mongo(self.mongo_conf)
-        mongo['debug'].update_one({"_id": device}, {"$set": {"{}.going_to_gather".format(freq): 1}}, upsert=True)
         date_from = datetime(2019, 1, 1)
         date_to = datetime.now()
         data_t = []
@@ -59,10 +57,7 @@ class Gemweb_gather(MRJob):
         for x in data_t:
             data.extend(x)
 
-        mongo = connection_mongo(self.mongo_conf)
-        mongo['debug'].update_one({"_id": device}, {"$set": {"{}.gathered".format(freq): 1}}, upsert=True)
-
-        update_info['$set']["timeseries.{}.{}.updated".format(device, freq)] = datetime.utcnow()
+        update_info["$set"][f"{freq}.updated"] = datetime.utcnow()
 
         if len(data) > 0:
             for d in data:
@@ -73,33 +68,24 @@ class Gemweb_gather(MRJob):
             hbase = connection_hbase(self.hbase_conf)
             htable = get_HTable(hbase, "{}_{}_{}".format(self.data_source["hbase_name"], freq, user), {"v": {}, "info": {}})
             save_to_hbase(htable, data, [("v", ["value"]), ("info", ["measurement_end"])], row_fields=['building', 'measurement_start'])
-            mongo = connection_mongo(self.mongo_conf)
-            mongo['debug'].update_one({"_id": device}, {"$set": {"{}.saving".format(freq): 1}}, upsert=True)
             self.increment_counter('saved', 'device', 1)
 
-            update_info['$set']["timeseries.{}.{}.datetime_to".format(device, freq)] = data[-1]['datetime']
-
+            update_info['$set'][f"{freq}.datetime_to"] = data[-1]['datetime']
+            update_info['$unset'] = {f"{freq}.error": ""}
             add_d_from = True
-            if 'timeseries' in self.connection:
-                if device in self.connection['timeseries']:
-                    if freq['name'] in self.connection['timeseries'][device]:
-                        if 'datetime_from' in self.connection['timeseries'][device][freq]:
-                            if self.connection['timeseries'][device][freq] < data[0]['datetime']:
-                                add_d_from = False
+            if device_mongo:
+                if freq in device_mongo:
+                    if 'datetime_from' in device_mongo[freq]:
+                        if device_mongo[freq]['datetime_from'] < data[0]['datetime']:
+                            add_d_from = False
             if add_d_from:
-                update_info['$set']["timeseries.{}.{}.datetime_from".format(device, freq)] = data[0][
-                            'datetime']
+                update_info['$set'][f"{freq}.datetime_from"] = data[0]['datetime']
         else:
-            update_info['$set']["timeseries.{}.{}.error".format(device, freq)] = "no new data"
+            update_info['$set'][f"{freq}.error"] = "no new data"
 
         mongo = connection_mongo(self.mongo_conf)
-        mongo['debug'].update_one({"_id": device}, {"$set": {"{}.finished".format(freq): 1}}, upsert=True)
-
-        mongo = connection_mongo(self.mongo_conf)
-        mongo['gemweb_timeseries_info'].update_one({"_id": self.connection["_id"]}, update_info, upsert=True)
+        mongo['gemweb_timeseries_info'].update_one({"_id": device}, update_info, upsert=True)
         self.increment_counter("finished", 'device', 1)
-        mongo = connection_mongo(self.mongo_conf)
-        mongo['debug'].update_one({"_id": device}, {"$set": {"{}.finished".format(freq): 1}}, upsert=True)
 
 
 if __name__ == '__main__':

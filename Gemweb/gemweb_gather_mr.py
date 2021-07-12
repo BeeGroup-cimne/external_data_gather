@@ -5,7 +5,9 @@ import gemweb
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
 import pickle
-from utils import *
+import pytz
+from ut
+ils import *
 
 
 class Gemweb_gather(MRJob):
@@ -76,7 +78,7 @@ class Gemweb_gather(MRJob):
             if device_mongo:
                 if freq in device_mongo:
                     if 'datetime_from' in device_mongo[freq]:
-                        if device_mongo[freq]['datetime_from'] < data[0]['datetime']:
+                        if pytz.UTC.localize(device_mongo[freq]['datetime_from']) < data[0]['datetime']:
                             add_d_from = False
             if add_d_from:
                 update_info['$set'][f"{freq}.datetime_from"] = data[0]['datetime']

@@ -52,7 +52,7 @@ for connection in mongo[data_source['info']].find({}):
         '--jobconf', 'mapreduce.map.env={},{},{}'.format(MOUNTS, IMAGE, RUNTYPE),
         '--jobconf', 'mapreduce.reduce.env={},{},{}'.format(MOUNTS, IMAGE, RUNTYPE),
         '--jobconf', 'mapreduce.job.name=gemweb_import',
-        '--jobconf', 'mapreduce.job.reduces=40'
+        '--jobconf', 'mapreduce.job.reduces=60'
     ])
 
     with mr_job.make_runner() as runner:

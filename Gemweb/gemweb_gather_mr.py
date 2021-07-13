@@ -38,7 +38,7 @@ class Gemweb_gather(MRJob):
         }
 
         user = self.connection['user']
-        date_from = datetime(2019, 1, 1)
+        date_from = datetime(2021, 6, 1)
         date_to = datetime.now()
         data_t = []
         while date_from < date_to:

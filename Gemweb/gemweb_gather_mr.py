@@ -85,7 +85,9 @@ class Gemweb_gather(MRJob):
             update_info['$set'][f"{freq}.error"] = "no new data"
 
         mongo = connection_mongo(self.mongo_conf)
+        mongo_d = {"updated": datetime.now()}
         mongo['gemweb_timeseries_info'].update_one({"_id": device}, update_info, upsert=True)
+        mongo['gemweb_debug'].replace_one({"_id": 0}, mongo_d, upsert=True)
         self.increment_counter("finished", 'device', 1)
 
 

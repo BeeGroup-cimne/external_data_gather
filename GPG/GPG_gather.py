@@ -38,6 +38,8 @@ def save_data_from_xlsx(file):
                "Qualificacio_urbanistica", "Clau_qualificacio_urbanistica",
                "Ref_Cadastral"]
     df = pd.read_excel(file, sheet_name='SGT_Informe General Immobl_0', names=columns, skiprows=list(range(1, 9)))
+    df.set_index("Num_Ens_Inventari", inplace=True)
+    df = df[~df.index.duplicated(keep='last')]
     df["Codi_postal"] = df["Municipi"].apply(get_codi_postal)
     df["Municipi"] = df["Municipi"].apply(get_municipi)
     df["Departament_Assig_Adscrip"] = df["Departament_Assig_Adscrip"].apply(remove_semicolon)

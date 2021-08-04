@@ -1,0 +1,7 @@
+BACnet Name,BACnet Type,Object ID,Description
+Consigna Clima COB Passad Curt,analogValue,37,
+Consigna Clima COB Passad Llarg,analogValue,38,
+Consigna Clima P1 Menjador,analogValue,39,
+Velocitat Ventilador Clima P3 Menjador,analogValue,81,
+E B11 Plaques Solars,binaryInput,31,
+E B14 Secundari ACS,binaryInput,32,

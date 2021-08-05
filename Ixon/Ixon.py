@@ -238,4 +238,4 @@ if __name__ == '__main__':
     for x in i.agents:
         aux = i.get_agent_ips(x['publicId'])
         if aux is not None:
-            print('%s: %s' % (x['name'], aux))
+            print('%s [%s]: %s' % (x['name'], x['publicId'], aux))

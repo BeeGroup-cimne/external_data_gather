@@ -66,7 +66,8 @@ class MRIxonJob(MRJob):
         # Generate VPN File
 
         subprocess.call('hdfs dfs -cp -f /vpn_template.ovpn /vpn_%s.ovpn' % key, shell=True)
-
+        with open('/vpn_template.ovpn') as line:
+            l = line.readline()
         # Connect to VPN
 
         # Read devices from hdfs/mongo
@@ -74,7 +75,7 @@ class MRIxonJob(MRJob):
         # Recover Data
 
         # Save data to HBase
-        yield key, None
+        yield key, l
 
     def steps(self):
         return [

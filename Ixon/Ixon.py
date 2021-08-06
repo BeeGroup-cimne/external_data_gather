@@ -223,6 +223,11 @@ class Ixon:
     def network_mask_to_bits(self, network_mask):
         return sum(bin(int(x)).count('1') for x in network_mask.split('.'))
 
+    def get_all_credentials(self):
+        return {'token': self.token_authorization, 'api_application': self.api_application,
+                'api_version': self.api_version, 'url': self.api_url,
+                'company': self.companies[0]['publicId']}
+
 
 if __name__ == '__main__':
     with open('config.json') as config_file:

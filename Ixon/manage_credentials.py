@@ -61,4 +61,7 @@ if __name__ == '__main__':
     put_file_to_hdfs()
     log.info("TSV File has been uploaded to HDFS successfully.")
 
+    put_file_to_hdfs('/home/francesc/Descargas/VPN/vpn_template.ovpn')
+    log.info("VPN Template File has been uploaded to HDFS successfully.")
+
     exit(0)

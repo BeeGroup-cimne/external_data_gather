@@ -1,7 +1,7 @@
 import requests
 from mrjob.job import MRJob
 from mrjob.step import MRStep
-
+import subprocess
 import Ixon
 
 
@@ -62,10 +62,24 @@ class MRIxonJob(MRJob):
         except Exception as ex:
             print(ex)
 
+    def reducer_ips(self, key, values):
+        # Generate VPN File
+
+        subprocess.call('hdfs dfs -cp -f /vpn_template.ovpn /vpn_%s.ovpn' % key, shell=True)
+
+        # Connect to VPN
+
+        # Read devices from hdfs/mongo
+
+        # Recover Data
+
+        # Save data to HBase
+        yield key, None
+
     def steps(self):
         return [
             MRStep(mapper=self.mapper_get_credentials),
-            MRStep(mapper=self.mapper_get_agent_ip)
+            MRStep(mapper=self.mapper_get_agent_ip, reducer=self.reducer_ips)
         ]
 
 

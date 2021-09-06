@@ -1,23 +1,25 @@
+from tempfile import NamedTemporaryFile
+
 import requests
 from mrjob.job import MRJob
 from mrjob.step import MRStep
-import subprocess
-import Ixon
+
+from Ixon import Ixon
 
 
 class MRIxonJob(MRJob):
-    def mapper_get_credentials(self, _, line):
+    def mapper_get_available_agents(self, _, line):
         l = line.split('\t')
-        ixon_conn = Ixon.Ixon(l[2])
+        ixon_conn = Ixon(l[2])
         ixon_conn.generate_token(l[0], l[1])
         ixon_conn.discovery()
         ixon_conn.get_companies()
         ixon_conn.get_agents()
 
         for agent in ixon_conn.agents:
-            yield agent['publicId'], ixon_conn.get_all_credentials()
+            yield agent['publicId'], ixon_conn.get_credentials()
 
-    def mapper_get_agent_ip(self, key, line):
+    def mapper_generate_network_config(self, key, line):
 
         try:
             res = requests.get(
@@ -63,13 +65,14 @@ class MRIxonJob(MRJob):
             print(ex)
 
     def reducer_ips(self, key, values):
-        # Generate VPN File
 
-        # subprocess.call('hdfs dfs -cp -f /vpn_template.ovpn /vpn_%s.ovpn' % key, shell=True)
-
-        with open('vpn_template.ovpn', 'a') as file:
-            file.write(f"\nroute {values['network']} {values['network_mask']} {values['ip_vpn']}")
-            yield 0, file.readlines()[-1]
+        # Generate VPN Config
+        with open('vpn_template.ovpn', 'r') as file:
+            f = NamedTemporaryFile(suffix='.ovpn')
+            f.write(bytes(file.read(), 'utf-8'))
+            f.write(bytes(f"\n\nroute {values['network']} {values['network_mask']} {values['ip_vpn']}\n", 'utf-8'))
+            f.close()
+            yield key, f.name
 
         # Connect to VPN
 
@@ -78,15 +81,14 @@ class MRIxonJob(MRJob):
         # Recover Data
 
         # Save data to HBase
-        # yield key, values
 
     def steps(self):
         return [
-            MRStep(mapper=self.mapper_get_credentials),
-            MRStep(mapper=self.mapper_get_agent_ip)
+            MRStep(mapper=self.mapper_get_available_agents),
+            MRStep(mapper=self.mapper_generate_network_config, reducer=self.reducer_ips)
         ]
 
 
 if __name__ == '__main__':
-    # python ixon_mrjob.py -r hadoop hdfs:///output.tsv --file Ixon.py --file template.ovpn
+    # python ixon_mrjob.py -r hadoop hdfs:///output.tsv --file Ixon.py --file vpn_template.ovpn
     MRIxonJob.run()

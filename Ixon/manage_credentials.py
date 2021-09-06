@@ -1,8 +1,9 @@
 import json
-from logger import setup_logger
 import subprocess
 
 from pymongo import MongoClient
+
+from logger import setup_logger
 
 
 def read_configuration(path='config.json'):
@@ -16,10 +17,10 @@ def read_configuration(path='config.json'):
 def generate_mongo_uri(config):
     try:
         if config['password'] and config['user']:
-            return 'mongodb://%s:%s@%s:%s/' % (
-                config['user'], config['password'], config['host'], config['port'])
+            return 'mongodb://%s:%s@%s:%s/%s' % (
+                config['user'], config['password'], config['host'], config['port'], config['db'])
         else:
-            return 'mongodb://%s:%s/' % (config['host'], config['port'])
+            return 'mongodb://%s:%s/%s' % (config['host'], config['port'], config['db'])
     except Exception as ex:
         log.error(ex)
 
@@ -36,7 +37,7 @@ def generate_tsv(collection, output_path='out/output.tsv'):
 
 def put_file_to_hdfs(source_file_path='out/output.tsv', destination_file_path='/'):
     try:
-        output = subprocess.call("hdfs dfs -put -f %s %s" % (source_file_path, destination_file_path), shell=True)
+        output = subprocess.call(f"hdfs dfs -put -f {source_file_path} {destination_file_path}", shell=True)
     except Exception as ex:
         log.error(ex)
 
@@ -61,7 +62,7 @@ if __name__ == '__main__':
     put_file_to_hdfs()
     log.info("TSV File has been uploaded to HDFS successfully.")
 
-    put_file_to_hdfs('/home/francesc/Descargas/VPN/vpn_template.ovpn')
-    log.info("VPN Template File has been uploaded to HDFS successfully.")
+    # put_file_to_hdfs('/home/francesc/Descargas/VPN/vpn_template.ovpn')
+    # log.info("VPN Template File has been uploaded to HDFS successfully.")
 
     exit(0)

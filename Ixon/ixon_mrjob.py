@@ -65,9 +65,12 @@ class MRIxonJob(MRJob):
     def reducer_ips(self, key, values):
         # Generate VPN File
 
-        subprocess.call('hdfs dfs -cp -f /vpn_template.ovpn /vpn_%s.ovpn' % key, shell=True)
-        with open('/vpn_template.ovpn') as line:
-            l = line.readline()
+        # subprocess.call('hdfs dfs -cp -f /vpn_template.ovpn /vpn_%s.ovpn' % key, shell=True)
+
+        with open('vpn_template.ovpn', 'a') as file:
+            file.write(f"\nroute {values['network']} {values['network_mask']} {values['ip_vpn']}")
+            yield 0, file.readlines()[-1]
+
         # Connect to VPN
 
         # Read devices from hdfs/mongo
@@ -75,15 +78,15 @@ class MRIxonJob(MRJob):
         # Recover Data
 
         # Save data to HBase
-        yield key, l
+        # yield key, values
 
     def steps(self):
         return [
             MRStep(mapper=self.mapper_get_credentials),
-            MRStep(mapper=self.mapper_get_agent_ip, reducer=self.reducer_ips)
+            MRStep(mapper=self.mapper_get_agent_ip)
         ]
 
 
 if __name__ == '__main__':
-    # python ixon_mrjob.py -r hadoop hdfs:///output.tsv --file Ixon.py
+    # python ixon_mrjob.py -r hadoop hdfs:///output.tsv --file Ixon.py --file template.ovpn
     MRIxonJob.run()

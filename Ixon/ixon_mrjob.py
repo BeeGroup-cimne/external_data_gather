@@ -1,3 +1,5 @@
+import glob
+import pickle
 from tempfile import NamedTemporaryFile
 
 import requests
@@ -64,15 +66,17 @@ class MRIxonJob(MRJob):
         except Exception as ex:
             print(ex)
 
-    def reducer_ips(self, key, values):
+    def mapper_generate_vpn(self, key, values):
 
         # Generate VPN Config
         with open('vpn_template.ovpn', 'r') as file:
             f = NamedTemporaryFile(suffix='.ovpn')
-            f.write(bytes(file.read(), 'utf-8'))
-            f.write(bytes(f"\n\nroute {values['network']} {values['network_mask']} {values['ip_vpn']}\n", 'utf-8'))
+            content = file.read()
+
+            content += "\nroute {0} {1} {2}".format(values['network'], values['network_mask'], values['ip_vpn'])
+            f.write(bytes(content, 'utf-8'))
             f.close()
-            yield key, f.name
+            yield key, content
 
         # Connect to VPN
 
@@ -82,10 +86,16 @@ class MRIxonJob(MRJob):
 
         # Save data to HBase
 
+    def mapper_init_mongo(self):
+        fn = glob.glob('*.json')
+        config = pickle.load(open(fn[0], 'rb'))
+        self.connection = config['mongo_db']
+
     def steps(self):
         return [
             MRStep(mapper=self.mapper_get_available_agents),
-            MRStep(mapper=self.mapper_generate_network_config, reducer=self.reducer_ips)
+            MRStep(mapper=self.mapper_generate_network_config),
+            MRStep(mapper_init=self.mapper_init_mongo, mapper=self.mapper_generate_vpn)
         ]
 
 

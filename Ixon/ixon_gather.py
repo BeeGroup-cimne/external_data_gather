@@ -69,9 +69,10 @@ if __name__ == '__main__':
     IMAGE = 'YARN_CONTAINER_RUNTIME_DOCKER_IMAGE=beerepo.tech.beegroup-cimne.com:5000/ixon_mr'
     RUNTYPE = 'YARN_CONTAINER_RUNTIME_TYPE=docker'
     mr_job = MRIxonJob(args=[
-        '-r', 'hadoop', 'hdfs:///output.tsv', '--file', 'Ixon.py',
+        '-r', 'hadoop', 'hdfs:///output.tsv',
+        '--file', 'Ixon.py',
         '--file', 'vpn_template.ovpn',
-        '--file', 'config.json',
+        '--file', 'config.json#config.json',
         '--jobconf', 'mapreduce.map.env={},{},{}'.format(MOUNTS, IMAGE, RUNTYPE),
         '--jobconf', 'mapreduce.reduce.env={},{},{}'.format(MOUNTS, IMAGE, RUNTYPE),
         '--jobconf', 'mapreduce.job.name=ixon_gather',

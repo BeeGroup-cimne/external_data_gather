@@ -1,10 +1,11 @@
-import glob
-import pickle
+import json
 from tempfile import NamedTemporaryFile
 
+# import BAC0
 import requests
 from mrjob.job import MRJob
 from mrjob.step import MRStep
+# from pymongo import MongoClient
 
 from Ixon import Ixon
 
@@ -76,19 +77,28 @@ class MRIxonJob(MRJob):
             content += "\nroute {0} {1} {2}".format(values['network'], values['network_mask'], values['ip_vpn'])
             f.write(bytes(content, 'utf-8'))
             f.close()
+
+            # Connect to VPN
+
+            # Read devices from mongo
+            # mongo_connection = MongoClient('mongodb://%s:%s@%s:%s/%s' % (
+            #     self.connection['user'], self.connection['password'], self.connection['host'], self.connection['port'],
+            #     self.connection['db']))
+            #
+            # building_devices = mongo_connection['ixon_devices'].find({"building_id": key})
+            #
+            # # Recover Data
+            # bacnet = BAC0.lite(ip='10.187.10.1/16', bbmdAddress=values['network'] + ':47808', bbmdTTL=9000)
+            #
+            # for device in building_devices:
+            #     val = bacnet.read(f"{values['bacnet_device']} {device['type']} {device['object_id']} presentValue")
+            #     # Save data to HBase
+
             yield key, content
 
-        # Connect to VPN
-
-        # Read devices from hdfs/mongo
-
-        # Recover Data
-
-        # Save data to HBase
-
     def mapper_init_mongo(self):
-        fn = glob.glob('*.json')
-        config = pickle.load(open(fn[0], 'rb'))
+        with open('config.json', 'r') as file:
+            config = json.load(file)
         self.connection = config['mongo_db']
 
     def steps(self):
@@ -100,5 +110,5 @@ class MRIxonJob(MRJob):
 
 
 if __name__ == '__main__':
-    # python ixon_mrjob.py -r hadoop hdfs:///output.tsv --file Ixon.py --file vpn_template.ovpn
+    # python ixon_mrjob.py -r hadoop hdfs:///output.tsv --file Ixon.py --file vpn_template.ovpn --file config.json
     MRIxonJob.run()

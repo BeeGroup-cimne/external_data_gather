@@ -1,11 +1,12 @@
 import json
+import subprocess
 from tempfile import NamedTemporaryFile
 
-# import BAC0
+import BAC0
 import requests
 from mrjob.job import MRJob
 from mrjob.step import MRStep
-# from pymongo import MongoClient
+from pymongo import MongoClient
 
 from Ixon import Ixon
 
@@ -71,30 +72,35 @@ class MRIxonJob(MRJob):
 
         # Generate VPN Config
         with open('vpn_template.ovpn', 'r') as file:
-            f = NamedTemporaryFile(suffix='.ovpn')
+            f = open(key + '.ovpn', 'w')
             content = file.read()
-
             content += "\nroute {0} {1} {2}".format(values['network'], values['network_mask'], values['ip_vpn'])
-            f.write(bytes(content, 'utf-8'))
-            f.close()
+            f.write(content)
 
             # Connect to VPN
+            # subprocess.Popen("echo <password> | sudo -S openvpn --config Ixon/vpn_template.ovpn", shell=True)
+            subprocess.Popen("openvpn --config %s" % f.name, shell=True)
 
             # Read devices from mongo
-            # mongo_connection = MongoClient('mongodb://%s:%s@%s:%s/%s' % (
-            #     self.connection['user'], self.connection['password'], self.connection['host'], self.connection['port'],
-            #     self.connection['db']))
-            #
-            # building_devices = mongo_connection['ixon_devices'].find({"building_id": key})
-            #
+            URI = 'mongodb://%s:%s@%s:%s/%s' % (
+                self.connection['user'], self.connection['password'], self.connection['host'], self.connection['port'],
+                self.connection['db'])
+
+            mongo_connection = MongoClient(URI)
+            db = mongo_connection[self.connection['db']]
+            collection = db['ixon_devices']
+
+            building_devices = list(collection.find({'building_id': key}, {'_id': 0}))
+
             # # Recover Data
             # bacnet = BAC0.lite(ip='10.187.10.1/16', bbmdAddress=values['network'] + ':47808', bbmdTTL=9000)
-            #
+
             # for device in building_devices:
             #     val = bacnet.read(f"{values['bacnet_device']} {device['type']} {device['object_id']} presentValue")
             #     # Save data to HBase
-
-            yield key, content
+            # subprocess.Popen("/usr/bin/killall openvpn", shell=True)
+            f.close()
+            yield key, f.name
 
     def mapper_init_mongo(self):
         with open('config.json', 'r') as file:
@@ -111,4 +117,5 @@ class MRIxonJob(MRJob):
 
 if __name__ == '__main__':
     # python ixon_mrjob.py -r hadoop hdfs:///output.tsv --file Ixon.py --file vpn_template.ovpn --file config.json
+    # docker run --cap-add=NET_ADMIN --device=/dev/net/tun -it -v /home/ubuntu/ixon_test:/home/ubuntu/ixon_test -u root beerepo.tech.beegroup-cimne.com:5000/ixon_mr bash
     MRIxonJob.run()

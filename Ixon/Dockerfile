@@ -1,15 +1,12 @@
-FROM python:3.8
+FROM beerepo.tech.beegroup-cimne.com:5000/mr-docker
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update
+RUN apt-get install -y python3 python3-pip openvpn bridge-utils libssl-dev openssl
 
-WORKDIR /Ixon
+ADD requirements.txt requirements.txt
 
-COPY requirements.txt .
 RUN pip install -r requirements.txt
 
-RUN mkdir /logs
-RUN mkdir /out
+USER ubuntu
 
-COPY config.json .
-COPY Ixon.py .
-COPY ixon_mrjob.py .
-COPY logger.py .
-COPY manage_credentials.py .
+CMD ["python3"]

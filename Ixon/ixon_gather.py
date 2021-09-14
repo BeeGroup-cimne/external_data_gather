@@ -65,18 +65,20 @@ if __name__ == '__main__':
     except Exception as ex:
         log.error(ex)
 
-    MOUNTS = 'YARN_CONTAINER_RUNTIME_DOCKER_MOUNTS=/hadoop_stack:/hadoop_stack:ro'
+    MOUNTS = 'YARN_CONTAINER_RUNTIME_DOCKER_MOUNTS=/dev/net/tun:/dev/net/tun:rw'
+    # DISABLE = 'YARN_CONTAINER_RUNTIME_DOCKER_RUN_OVERRIDE_DISABLE=true'
+    # MOUNTS = 'YARN_CONTAINER_RUNTIME_DOCKER_MOUNTS=/hadoop_stack:/hadoop_stack:ro'
     IMAGE = 'YARN_CONTAINER_RUNTIME_DOCKER_IMAGE=beerepo.tech.beegroup-cimne.com:5000/ixon_mr'
     RUNTYPE = 'YARN_CONTAINER_RUNTIME_TYPE=docker'
+    # PRIVILEGED = 'YARN_CONTAINER_RUNTIME_DOCKER_RUN_PRIVILEGED_CONTAINER=true'
     mr_job = MRIxonJob(args=[
         '-r', 'hadoop', 'hdfs:///output.tsv',
         '--file', 'Ixon.py',
         '--file', 'vpn_template.ovpn',
         '--file', 'config.json#config.json',
-        '--jobconf', 'mapreduce.map.env={},{},{}'.format(MOUNTS, IMAGE, RUNTYPE),
-        '--jobconf', 'mapreduce.reduce.env={},{},{}'.format(MOUNTS, IMAGE, RUNTYPE),
+        '--jobconf', 'mapreduce.map.env={},{},{}'.format(MOUNTS, IMAGE, RUNTYPE),  # PRIVILEGED, DISABLE),
+        '--jobconf', 'mapreduce.reduce.env={},{},{}'.format(MOUNTS, IMAGE, RUNTYPE),  # PRIVILEGED, DISABLE),
         '--jobconf', 'mapreduce.job.name=ixon_gather',
-        '--jobconf', 'mapreduce.job.maps=1',
         '--output-dir', 'ixon_output'
     ])
 

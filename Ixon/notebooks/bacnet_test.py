@@ -3,7 +3,7 @@ import sys
 import BAC0
 import pandas as pd
 
-from logger import setup_logger
+from Ixon.logger import setup_logger
 
 if __name__ == '__main__':
 

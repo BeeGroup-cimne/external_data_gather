@@ -91,7 +91,7 @@ class MRIxonJob(MRJob):
             interfaces = subprocess.run(["hostname", "-I"], stdout=subprocess.PIPE)
             interfaces_list = interfaces.stdout.decode(encoding="utf-8").split(" ")
 
-            # Service loop
+            # Waiting to VPN connection
             time_out = 3  # seconds
             init_time = time.time()
             waiting_time = 0.2
@@ -104,7 +104,7 @@ class MRIxonJob(MRJob):
                 if time.time() - init_time > time_out:
                     raise Exception("VPN Connection: Time out exceded.")
 
-            # Read devices from mongo
+            # Recover devices from mongo
             URI = 'mongodb://%s:%s@%s:%s/%s' % (
                 self.connection['user'], self.connection['password'], self.connection['host'],
                 self.connection['port'],
@@ -114,27 +114,22 @@ class MRIxonJob(MRJob):
             db = mongo_connection[self.connection['db']]
             collection = db['ixon_devices']
 
-            building_devices = list(collection.find({'building_id': key}, {'_id': 0}))
-
-            out = subprocess.run(["hostname", "-I"], stdout=subprocess.PIPE)
-            sys.stderr.write(out.stdout.decode(encoding="utf-8"))
-            sys.stderr.write(value['deviceId'] + "\n")
+            building_devices = list(collection.find({'building_id': value['deviceId']}, {'_id': 0}))
 
             # Recover Data
             bacnet = BAC0.lite(ip='10.187.10.1/16', bbmdAddress=value['bacnet_device'] + ':47808', bbmdTTL=9000)
 
-            x = [bacnet.read(f"{value['bacnet_device']} {value['type']} {value['object_id']} presentValue") for
-                 devices
-                 in building_devices]
+            x = [bacnet.read(f"{value['bacnet_device']} {devices['type']} {devices['object_id']} presentValue") for
+                 devices in building_devices]
             # regex:  /(^|\s)10.187/g
 
             # Save data to HBase
 
-            # Stop Openvpn
+            # End Connections (Bacnet and VPN)
             bacnet.disconnect()
             subprocess.call(["sudo", "pkill", "openvpn"])
-            out = subprocess.run(["hostname", "-I"], stdout=subprocess.PIPE)
-            sys.stderr.write(out.stdout.decode(encoding="utf-8"))
+            # out = subprocess.run(["hostname", "-I"], stdout=subprocess.PIPE)
+            # sys.stderr.write(out.stdout.decode(encoding="utf-8"))
             yield key, str(x)
 
     def reducer_init_mongo(self):

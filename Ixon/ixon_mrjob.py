@@ -1,4 +1,5 @@
 import json
+import re
 import subprocess
 import sys
 import time
@@ -11,7 +12,8 @@ from pymongo import MongoClient
 
 from Ixon import Ixon
 
-NUM_VPNS_CONFIG = 1
+NUM_VPNS_CONFIG = 5
+vpn_network_ip = "(^| )10\.187"
 
 
 class MRIxonJob(MRJob):
@@ -33,7 +35,7 @@ class MRIxonJob(MRJob):
     def mapper_generate_network_config(self, key, line):
 
         try:
-            # Request: get network configuration
+            # Get network configuration
             res = requests.get(
                 line[
                     'url'] + '/agents/{}?fields=activeVpnSession.vpnAddress,config.routerLan.*,devices.*,devices.dataProtocol.*,deviceId'.format(
@@ -96,11 +98,13 @@ class MRIxonJob(MRJob):
             init_time = time.time()
             waiting_time = 0.2
 
-            while "10.187.10.1" not in interfaces_list:
+            vpn_ip = [x for x in interfaces_list if re.match(vpn_network_ip, x)]
+
+            while not vpn_ip:
                 time.sleep(waiting_time)
                 interfaces = subprocess.run(["hostname", "-I"], stdout=subprocess.PIPE)
                 interfaces_list = interfaces.stdout.decode(encoding="utf-8").split(" ")
-
+                vpn_ip = [x for x in interfaces_list if re.match(vpn_network_ip, x)]
                 if time.time() - init_time > time_out:
                     raise Exception("VPN Connection: Time out exceded.")
 
@@ -117,13 +121,14 @@ class MRIxonJob(MRJob):
             building_devices = list(collection.find({'building_id': value['deviceId']}, {'_id': 0}))
 
             # Recover Data
-            bacnet = BAC0.lite(ip='10.187.10.1/16', bbmdAddress=value['bacnet_device'] + ':47808', bbmdTTL=9000)
+            # Open BACnet Connection
+            bacnet = BAC0.lite(ip=vpn_ip[0] + '/16', bbmdAddress=value['bacnet_device'] + ':47808', bbmdTTL=9000)
 
+            # Recover data for each device
             x = [bacnet.read(f"{value['bacnet_device']} {devices['type']} {devices['object_id']} presentValue") for
                  devices in building_devices]
-            # regex:  /(^|\s)10.187/g
 
-            # Save data to HBase
+            # TODO: Save data to HBase
 
             # End Connections (Bacnet and VPN)
             bacnet.disconnect()

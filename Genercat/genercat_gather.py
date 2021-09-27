@@ -64,7 +64,7 @@ def load_genercat_hbase():
     HTable = 'genercat'
     htable = get_HTable(hbase, HTable, {"info": {}})
     documents = get_data()
-    save_to_hbase(htable, documents, [("info", "all")], row_fields=['id'])
+    save_to_hbase(htable, documents, [("info", "all")], row_fields=None)
 
 
 if __name__ == "__main__":

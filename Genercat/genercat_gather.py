@@ -54,7 +54,7 @@ def get_data():
                     item[column_name] = str(df.iloc[i, pos])
                 else:
                     item[column_name] = df.iloc[i, pos]
-                data.append(item)
+        data.append(item)
     return data
 
 

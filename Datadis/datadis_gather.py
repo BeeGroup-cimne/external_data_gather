@@ -48,8 +48,11 @@ def load_datadis_hbase(data_type):
     documents = get_data(data_type)
     if data_type in ["contracts", "supplies"]:
         save_to_hbase(htable, documents, [("info", "all")], row_fields=["u_id","cups"])
+    elif data_type == "max_power":
+        save_to_hbase(htable, documents, [("info", "all")], row_fields=["cups", "date"])
     else:
-        save_to_hbase(htable, documents, [("info", "all")], row_fields=["cups"])
+        save_to_hbase(htable, documents, [("info", "all")], row_fields=["cups", "datetime"])
+        
         
 
 if __name__ == "__main__":

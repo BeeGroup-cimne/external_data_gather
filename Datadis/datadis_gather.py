@@ -1,6 +1,7 @@
 import json
 import os
 import argparse
+import datetime
 import sys
 sys.path.append(os.getcwd())
 from utils import *
@@ -28,14 +29,22 @@ def connection_mongo():
 def get_data(data_type):
     conn = connection_mongo()
     res = conn[data_type_source[data_type]].find({},
-                                                 {"_id:0"},
                                                  no_cursor_timeout=True)
     data = []
     for i in res:
         item = {}
         for k in i.keys():
-            item[k] = i[k]
+            if k !="_id":                
+                item[k] = i[k]
+
         data.append(item)
+
+    if data_type == "max_power":
+        for i in data:
+            i["date"] = int(datetime.datetime.strptime(i["date"],"%Y/%m/%d").timestamp())
+    elif data_type in ["hourly_consumption","quarter_hourly_consumption"]:
+        for i in data:
+            i["datetime"] = i["datetime"].timestamp()                
     return data
 
 

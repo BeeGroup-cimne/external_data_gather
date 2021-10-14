@@ -4,6 +4,9 @@ from sodapy import Socrata
 
 class SocrataClient:
 
+    def __init__(self):
+        pass
+
     @property
     def client(self):
         return Socrata(self.url, self.application_token)

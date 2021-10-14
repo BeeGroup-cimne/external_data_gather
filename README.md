@@ -7,6 +7,6 @@ permanent access to the raw data obtained from each source.
 
 The following links will provide information of each data source import tool:
 
-1. [GPG (Gestió de patrimoni de la generalitat)](./GPG/README.md)
-2. [Gemweb](./Gemweb/Readme.md)
-
+1. [GPG (Gestió de patrimoni de la generalitat)](GPG/README.md)
+2. [Gemweb](Gemweb/README.md)
+3. [Certificats d’eficiència energètica d’edificis](DadesObertes/CEEE/README.md)

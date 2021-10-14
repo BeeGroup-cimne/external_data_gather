@@ -44,6 +44,10 @@ class Gemweb_gather(MRJob):
         while date_from < date_to:
             date_to2 = date_from + frequencies[freq]['part']
             try:
+                device_mongo = mongo['gemweb_debug'].insert_one({"device": device, "date_from": date_from,
+                                                "date_to": date_to2,
+                                                "period": frequencies[freq]['freq']})
+
                 x2 = gemweb.gemweb.gemweb_query(gemweb.ENDPOINTS.GET_METERING, id_=device,
                                                 date_from=date_from,
                                                 date_to=date_to2,

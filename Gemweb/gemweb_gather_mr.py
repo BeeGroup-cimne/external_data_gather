@@ -26,10 +26,10 @@ class Gemweb_gather(MRJob):
     def reducer(self, launch, _):
 
         device, freq = launch.split("~")
-        debug_id = mongo['gemweb_debug_log'].insert_one({"device": device, "freq": freq, "logs": ["start"]})
         # call mapreduce with input file as the supplies and performs the following job
         gemweb.gemweb.connection(self.connection['username'], self.connection['password'], timezone="UTC")
         mongo = connection_mongo(self.mongo_conf)
+        debug_id = mongo['gemweb_debug_log'].insert_one({"device": device, "freq": freq, "logs": ["start"]})
         device_mongo = mongo['gemweb_timeseries_info'].find_one({"_id": device})
         update_info = {"$set": {}}
         frequencies = {

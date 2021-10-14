@@ -24,7 +24,9 @@ class Gemweb_gather(MRJob):
             yield "{}~{}".format(device, k), None
 
     def reducer(self, launch, _):
+
         device, freq = launch.split("~")
+        debug_id = mongo['gemweb_debug_log'].insert_one({"device": device, "freq": freq, "logs": ["start"]})
         # call mapreduce with input file as the supplies and performs the following job
         gemweb.gemweb.connection(self.connection['username'], self.connection['password'], timezone="UTC")
         mongo = connection_mongo(self.mongo_conf)
@@ -42,9 +44,10 @@ class Gemweb_gather(MRJob):
         date_to = datetime.now()
         data_t = []
         while date_from < date_to:
+            mongo['gemweb_debug_log'].update_one({"_id": debug_id}, {"$push": {"logs": f"getting from {date_from} to {date_to}"}})
             date_to2 = date_from + frequencies[freq]['part']
             try:
-                device_mongo = mongo['gemweb_debug'].insert_one({"device": device, "date_from": date_from,
+                mongo['gemweb_debug'].insert_one({"device": device, "date_from": date_from,
                                                 "date_to": date_to2,
                                                 "period": frequencies[freq]['freq']})
 
@@ -52,7 +55,12 @@ class Gemweb_gather(MRJob):
                                                 date_from=date_from,
                                                 date_to=date_to2,
                                                 period=frequencies[freq]['freq'])
+                mongo['gemweb_debug_log'].update_one({"_id": debug_id},
+                                                     {"$push": {"logs": f"succeed from {date_from} to {date_to}"}})
             except Exception as e:
+                mongo['gemweb_debug_log'].update_one({"_id": debug_id},
+                                                     {"$push": {"logs": f"failed from {date_from} to {date_to}"}})
+
                 x2 = []
             self.increment_counter('gathered', 'device', 1)
             date_from = date_to2 + relativedelta(days=1)
@@ -72,6 +80,8 @@ class Gemweb_gather(MRJob):
             # save obtained data to hbase
             hbase = connection_hbase(self.hbase_conf)
             htable = get_HTable(hbase, "{}_{}_{}".format(self.data_source["hbase_name"], freq, user), {"v": {}, "info": {}})
+            mongo['gemweb_debug_log'].update_one({"_id": debug_id},
+                                                 {"$push": {"logs": f"saving to hbase"}})
             save_to_hbase(htable, data, [("v", ["value"]), ("info", ["measurement_end"])], row_fields=['building', 'measurement_start'])
             self.increment_counter('saved', 'device', 1)
 
@@ -91,7 +101,8 @@ class Gemweb_gather(MRJob):
         mongo = connection_mongo(self.mongo_conf)
         mongo_d = {"updated": datetime.now()}
         mongo['gemweb_timeseries_info'].update_one({"_id": device}, update_info, upsert=True)
-        mongo['gemweb_debug'].replace_one({"_id": 0}, mongo_d, upsert=True)
+        mongo['gemweb_debug_log'].update_one({"_id": debug_id},
+                                             {"$push": {"logs": f"finish"}})
         self.increment_counter("finished", 'device', 1)
 
 

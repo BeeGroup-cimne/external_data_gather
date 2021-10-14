@@ -47,13 +47,19 @@ def get_data(data_type):
             i["datetime"] = i["datetime"].timestamp()                
     return data
 
+def split_list(data_list,list_size):
+    result = []
+    for i in range(0,len(data_list), list_size):
+        result.append(data_list[i:i + list_size])
+    return result
 
 def load_datadis_hbase(data_type):
     config = get_config()
     hbase = connection_hbase(config["hbase"])
     HTable = 'datadis_' + data_type
     htable = get_HTable(hbase, HTable, {"info": {}})
-    documents = get_data(data_type)
+    documents = get_data(data_type)    
+
     if data_type in ["contracts", "supplies"]:
         save_to_hbase(htable,
                       documents,
@@ -65,10 +71,12 @@ def load_datadis_hbase(data_type):
                       [("info", "all")],
                       row_fields=["cups", "date"])
     else:
-        save_to_hbase(htable,
-                      documents,
-                      [("info", "all")],
-                      row_fields=["cups", "datetime"])
+        documents_partition = self.split_list(documents,200000)
+        for block in documents_partition:
+            save_to_hbase(htable,
+                          block,
+                          [("info", "all")],
+                          row_fields=["cups", "datetime"])
 
 
 if __name__ == "__main__":

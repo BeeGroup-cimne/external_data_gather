@@ -44,7 +44,7 @@ class Gemweb_gather(MRJob):
         date_to = datetime.now()
         data_t = []
         while date_from < date_to:
-            mongo['gemweb_debug_log'].update_one({"_id": debug_id}, {"$push": {"logs": f"getting from {date_from} to {date_to}"}})
+            mongo['gemweb_debug_log'].update_one({"_id": debug_id.inserted_id}, {"$push": {"logs": f"getting from {date_from} to {date_to}"}})
             date_to2 = date_from + frequencies[freq]['part']
             try:
                 mongo['gemweb_debug'].insert_one({"device": device, "date_from": date_from,
@@ -55,10 +55,10 @@ class Gemweb_gather(MRJob):
                                                 date_from=date_from,
                                                 date_to=date_to2,
                                                 period=frequencies[freq]['freq'])
-                mongo['gemweb_debug_log'].update_one({"_id": debug_id},
+                mongo['gemweb_debug_log'].update_one({"_id": debug_id.inserted_id},
                                                      {"$push": {"logs": f"succeed from {date_from} to {date_to}"}})
             except Exception as e:
-                mongo['gemweb_debug_log'].update_one({"_id": debug_id},
+                mongo['gemweb_debug_log'].update_one({"_id": debug_id.inserted_id},
                                                      {"$push": {"logs": f"failed from {date_from} to {date_to}"}})
 
                 x2 = []
@@ -80,7 +80,7 @@ class Gemweb_gather(MRJob):
             # save obtained data to hbase
             hbase = connection_hbase(self.hbase_conf)
             htable = get_HTable(hbase, "{}_{}_{}".format(self.data_source["hbase_name"], freq, user), {"v": {}, "info": {}})
-            mongo['gemweb_debug_log'].update_one({"_id": debug_id},
+            mongo['gemweb_debug_log'].update_one({"_id": debug_id.inserted_id},
                                                  {"$push": {"logs": f"saving to hbase"}})
             save_to_hbase(htable, data, [("v", ["value"]), ("info", ["measurement_end"])], row_fields=['building', 'measurement_start'])
             self.increment_counter('saved', 'device', 1)
@@ -101,7 +101,7 @@ class Gemweb_gather(MRJob):
         mongo = connection_mongo(self.mongo_conf)
         mongo_d = {"updated": datetime.now()}
         mongo['gemweb_timeseries_info'].update_one({"_id": device}, update_info, upsert=True)
-        mongo['gemweb_debug_log'].update_one({"_id": debug_id},
+        mongo['gemweb_debug_log'].update_one({"_id": debug_id.inserted_id},
                                              {"$push": {"logs": f"finish"}})
         self.increment_counter("finished", 'device', 1)
 

@@ -40,7 +40,7 @@ class Gemweb_gather(MRJob):
     #     gemweb.gemweb.connection(self.connection['username'], self.connection['password'], timezone="UTC")
         mongo = connection_mongo(self.mongo_conf)
         query_doc = {"device": device, "freq": freq}
-        mongo['gemweb_debug_log_reduce'].update_one(query_doc, {"$push": {"logs", "reduce"}})
+        mongo['gemweb_debug_log_reduce'].update_one(query_doc, {"$push": {"logs": "reduce"}})
     #     device_mongo = mongo['gemweb_timeseries_info'].find_one({"_id": device})
     #     update_info = {"$set": {}}
     #     frequencies = {

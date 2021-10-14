@@ -67,7 +67,6 @@ class Gemweb_gather(MRJob):
             self.increment_counter('gathered', 'device', 1)
             date_from = date_to2 + relativedelta(days=1)
             data_t.append(x2)
-            break
 
         data = []
         for x in data_t:

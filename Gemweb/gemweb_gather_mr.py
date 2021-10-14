@@ -32,13 +32,13 @@ class Gemweb_gather(MRJob):
         update_info = {"$set": {}}
         frequencies = {
                           # 'data_15m': {'freq': 'quart-horari', 'step': relativedelta(minutes=15)},
-                          'data_1h': {'freq': 'horari', 'step': relativedelta(hours=1), 'part': relativedelta(days=30)},
-                          'data_daily': {'freq': 'diari', 'step': relativedelta(days=1), 'part': relativedelta(days=60)},
+                          'data_1h': {'freq': 'horari', 'step': relativedelta(hours=1), 'part': relativedelta(months=1)},
+                          'data_daily': {'freq': 'diari', 'step': relativedelta(days=1), 'part': relativedelta(months=6)},
                           'data_month': {'freq': 'mensual', 'step': relativedelta(months=1), 'part': relativedelta(months=12)}
         }
 
         user = self.connection['user']
-        date_from = datetime(2020, 1, 1)
+        date_from = datetime(2021, 1, 1)
         date_to = datetime.now()
         data_t = []
         while date_from < date_to:

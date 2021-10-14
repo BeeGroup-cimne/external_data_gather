@@ -20,6 +20,6 @@ class SocrataClient:
     def application_token(self):
         return None
 
-    def query(self, limit=None):
-        results = self.client.get(self.dataset_id, limit=limit)
+    def query(self, limit=None, offset=None):
+        results = self.client.get(self.dataset_id, limit=limit, offset=offset)
         return pd.DataFrame.from_records(results)

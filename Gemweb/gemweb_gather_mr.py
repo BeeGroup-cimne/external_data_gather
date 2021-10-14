@@ -30,7 +30,7 @@ class Gemweb_gather(MRJob):
         frequencies = ['data_1h', 'data_daily', 'data_month']  # 'data_15m'
         mongo = connection_mongo(self.mongo_conf)
         for k in frequencies:
-            mongo['gemweb_debug_log_map'].insert_one({"device": device, "freq": k})
+            mongo['gemweb_debug_log'].insert_one({"device": device, "freq": k, "logs": ["map"]})
             yield "{}~{}".format(device, k), None
 
     def reducer(self, launch, _):
@@ -40,7 +40,7 @@ class Gemweb_gather(MRJob):
     #     gemweb.gemweb.connection(self.connection['username'], self.connection['password'], timezone="UTC")
         mongo = connection_mongo(self.mongo_conf)
         query_doc = {"device": device, "freq": freq}
-        mongo['gemweb_debug_log_reduce'].insert_one({"device": device, "freq": freq})
+        mongo['gemweb_debug_log_reduce'].update_one(query_doc, {"$push": {"logs", "reduce"}})
     #     device_mongo = mongo['gemweb_timeseries_info'].find_one({"_id": device})
     #     update_info = {"$set": {}}
     #     frequencies = {

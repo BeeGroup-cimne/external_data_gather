@@ -30,7 +30,7 @@ class DataSource:
         save_to_hbase(
             htable,
             records,
-            [tuple(records[0])],
+            [("info", "all")],
             row_fields=["num_cas"],
             version=metadata["version"],
         )

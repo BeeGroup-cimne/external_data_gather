@@ -26,10 +26,20 @@ def connection_mongo():
     return db
 
 
-def get_data(data_type):
+def get_cups_list():
     conn = connection_mongo()
-    res = conn[data_type_source[data_type]].find({},
-                                                 no_cursor_timeout=True)
+    res = conn["supplies_datadis"].find({})
+    return [i["cups"] for i in res]
+
+
+def get_data(data_type, cups = None):
+    conn = connection_mongo()
+    if not cups: 
+        res = conn[data_type_source[data_type]].find({},
+                                                     no_cursor_timeout=True)
+    else:
+        res = conn[data_type_source[data_type]].find({"cups": cups},
+                                                     no_cursor_timeout=True)        
     data = []
     for i in res:
         item = {}
@@ -47,18 +57,49 @@ def get_data(data_type):
             i["datetime"] = i["datetime"].timestamp()                
     return data
 
+
 def split_list(data_list,list_size):
     result = []
     for i in range(0,len(data_list), list_size):
         result.append(data_list[i:i + list_size])
     return result
 
-def load_datadis_hbase(data_type):
+
+def load_datadis_hbase_by_cups(data_type):
     config = get_config()
     hbase = connection_hbase(config["hbase"])
     HTable = 'datadis_' + data_type
     htable = get_HTable(hbase, HTable, {"info": {}})
-    documents = get_data(data_type)    
+    users_list = 
+    for cups in cups_list:
+        documents = get_data(data_type,cups)
+        if len(documents) > 200000: 
+            documents_partition = self.split_list(documents,200000)        
+            for block in documents_partition:
+                print(cups)
+                try:
+                    save_to_hbase(htable,
+                                  block,
+                                  [("info", "all")],
+                                  row_fields=["cups", "datetime"])
+                except Exception as e:
+                    print('ERROR load by cups:%s' % e)
+        else:
+            try:
+                save_to_hbase(htable,
+                              documents,
+                              [("info", "all")],
+                              row_fields=["cups", "datetime"])
+            except Exception as e:
+                    print('ERROR load to hbase:%s' % e)    
+
+
+def load_datadis_hbase(data_type):
+    documents = get_data(data_type,user)
+    config = get_config()
+    hbase = connection_hbase(config["hbase"])
+    HTable = 'datadis_' + data_type
+    htable = get_HTable(hbase, HTable, {"info": {}})    
 
     if data_type in ["contracts", "supplies"]:
         save_to_hbase(htable,
@@ -70,13 +111,6 @@ def load_datadis_hbase(data_type):
                       documents,
                       [("info", "all")],
                       row_fields=["cups", "date"])
-    else:
-        documents_partition = self.split_list(documents,200000)
-        for block in documents_partition:
-            save_to_hbase(htable,
-                          block,
-                          [("info", "all")],
-                          row_fields=["cups", "datetime"])
 
 
 if __name__ == "__main__":
@@ -88,4 +122,8 @@ if __name__ == "__main__":
     args = vars(ap.parse_args())
 
     if args['data_type'] in data_type_source.keys():
-        load_datadis_hbase(args['data_type'])
+        if args['data_type'] in ["hourly_consumption_datadis", 
+                                 "quarter_hourly_consumption_datadis"]:
+            load_datadis_hbase_by_cups(args['data_type'])       
+        else:
+            load_datadis_hbase(args['data_type'])

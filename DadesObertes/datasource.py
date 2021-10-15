@@ -13,18 +13,24 @@ class DataSource:
     def get_metadata(self):
         mongo = connection_mongo(self.mongo_db)
         info = mongo[self.info].find_one({})
-        version = info['version'] + 1
-        user = info['user']
-        return {
-            "version": version,
-            "user": user
-        }
+        if info is None:
+            info = {"version": 0, "user": self.mongo_db["user"]}
+        version = info["version"] + 1
+        user = info["user"]
+        return {"version": version, "user": user}
 
-
-    def save(self, df):
+    def save(self, df, metadata):
         hbase = connection_hbase(self.hbase)
-        metadata = self.get_metadata()
-        htable = get_HTable(hbase, "{}_{}_{}".format(self.hbase_name, "buildings", metadata["user"]),
-                            {"info": {}})
-        save_to_hbase(htable, df.to_dict("records"), [("info", "all")], row_fields=['Num_Ens_Inventari'],
-                      version=metadata["version"])
+        htable = get_HTable(
+            hbase,
+            "{}_{}_{}".format(self.hbase_name, self.hbase["db"], metadata["user"]),
+            {"info": {}},
+        )
+        records = df.to_dict("records")
+        save_to_hbase(
+            htable,
+            records,
+            [tuple(records[0])],
+            row_fields=["num_cas"],
+            version=metadata["version"],
+        )

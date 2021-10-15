@@ -14,4 +14,6 @@ class CEEEDataSource(DataSource):
             df = CEEE().query(limit=self.limit, offset=offset)
             if df.empty:
                 break
+            metadata = self.get_metadata()
+            self.save(df, metadata)
             offset += self.limit

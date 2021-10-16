@@ -28,7 +28,7 @@ for connection in mongo[data_source['info']].find({}):
                                 "hbase.columns.mapping" = ":key,info:cups"
                             )"""
 
-    save_id_to_file = f"""INSERT OVERWRITE DIRECTORY '/tmp/{hdfs_file}/' SELECT id FROM {hdfs_file} WHERE ID > """
+    save_id_to_file = f"""INSERT OVERWRITE DIRECTORY '/tmp/{hdfs_file}/' SELECT id FROM {hdfs_file}"""
     remove_hbase_table = f"""DROP TABLE {hdfs_file}"""
     cursor = hive.Connection("master1.internal", 10000, database="gemweb").cursor()
     cursor.execute(create_table_hbase)

@@ -28,7 +28,7 @@ for connection in mongo[data_source['info']].find({}):
                                 "hbase.columns.mapping" = ":key,info:cups"
                             )"""
 
-    save_id_to_file = f"""INSERT OVERWRITE DIRECTORY '/tmp/{hdfs_file}/' SELECT id FROM {hdfs_file}"""
+    save_id_to_file = f"""INSERT OVERWRITE DIRECTORY '/tmp/{hdfs_file}/' SELECT id FROM {hdfs_file} WHERE ID > """
     remove_hbase_table = f"""DROP TABLE {hdfs_file}"""
     cursor = hive.Connection("master1.internal", 10000, database="gemweb").cursor()
     cursor.execute(create_table_hbase)
@@ -56,7 +56,7 @@ for connection in mongo[data_source['info']].find({}):
         '--jobconf', 'mapreduce.map.env={},{},{}'.format(MOUNTS, IMAGE, RUNTYPE),
         '--jobconf', 'mapreduce.reduce.env={},{},{}'.format(MOUNTS, IMAGE, RUNTYPE),
         '--jobconf', 'mapreduce.job.name=gemweb_import',
-        '--jobconf', 'mapreduce.job.reduces=4',
+        '--jobconf', 'mapreduce.job.reduces=8',
     ])
 
     with mr_job.make_runner() as runner:

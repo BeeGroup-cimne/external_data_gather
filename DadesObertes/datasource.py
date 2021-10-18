@@ -33,4 +33,5 @@ class DataSource:
             [("info", "all")],
             row_fields=["num_cas"],
             version=metadata["version"],
+            batch_size=len(records)
         )

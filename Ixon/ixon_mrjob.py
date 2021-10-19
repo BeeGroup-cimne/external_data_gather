@@ -1,16 +1,16 @@
+import datetime
 import json
 import re
 import subprocess
 import sys
-import time
 
 import BAC0
 import requests
 from mrjob.job import MRJob
 from mrjob.step import MRStep
-from pymongo import MongoClient
 
 from Ixon import Ixon
+from utils import *
 
 NUM_VPNS_CONFIG = 5
 vpn_network_ip = "(^| )10\.187"
@@ -21,8 +21,8 @@ class MRIxonJob(MRJob):
         # line : email password application_id
         l = line.split('\t')
 
-        ixon_conn = Ixon(l[2])
-        ixon_conn.generate_token(l[0], l[1])
+        ixon_conn = Ixon(l[2])  # api application
+        ixon_conn.generate_token(l[0], l[1])  # user, password
         ixon_conn.discovery()
         ixon_conn.get_companies()
         ixon_conn.get_agents()
@@ -30,6 +30,7 @@ class MRIxonJob(MRJob):
         for index, agent in enumerate(ixon_conn.agents):
             dict_result = ixon_conn.get_credentials()
             dict_result.update({"agent": agent['publicId']})
+            dict_result.update({"company_label": l[3]})
             yield index % NUM_VPNS_CONFIG, dict_result
 
     def mapper_generate_network_config(self, key, line):
@@ -38,7 +39,7 @@ class MRIxonJob(MRJob):
             # Get network configuration
             res = requests.get(
                 line[
-                    'url'] + '/agents/{}?fields=activeVpnSession.vpnAddress,config.routerLan.*,devices.*,devices.dataProtocol.*,deviceId'.format(
+                    'url'] + '/agents/{}?fields=activeVpnSession.vpnAddress,config.routerLan.*,devices.*,devices.dataProtocol.*,deviceId,description'.format(
                     line['agent']),
                 headers={
                     'IXapi-Version': line['api_version'],
@@ -53,8 +54,10 @@ class MRIxonJob(MRJob):
 
             if data is not None and data['devices']:
                 ips = {}
+                ips["company_label"] = line['company_label']
 
                 ips['ip_vpn'] = data['activeVpnSession']['vpnAddress'] if data['activeVpnSession'] else None
+                ips['description'] = data['description']
 
                 if data['config'] is not None and data['config']['routerLan'] is not None:
                     ips['network'] = data['config']['routerLan']['network']
@@ -94,7 +97,7 @@ class MRIxonJob(MRJob):
             interfaces_list = interfaces.stdout.decode(encoding="utf-8").split(" ")
 
             # Waiting to VPN connection
-            time_out = 3  # seconds
+            time_out = 5  # seconds
             init_time = time.time()
             waiting_time = 0.2
 
@@ -122,32 +125,54 @@ class MRIxonJob(MRJob):
 
             # Recover Data
             # Open BACnet Connection
-            bacnet = BAC0.lite(ip=vpn_ip[0] + '/16', bbmdAddress=value['bacnet_device'] + ':47808', bbmdTTL=9000)
+            bacnet = BAC0.lite(ip=vpn_ip[0] + '/16', bbmdAddress=value['bacnet_device'] + ':47808', bbmdTTL=900)
 
             # Recover data for each device
-            x = [bacnet.read(f"{value['bacnet_device']} {devices['type']} {devices['object_id']} presentValue") for
-                 devices in building_devices]
+            results = []
 
-            # TODO: Save data to HBase
+            for device in building_devices:
+                try:
+                    device_value = bacnet.read(
+                        f"{value['bacnet_device']} {device['type']} {device['object_id']} presentValue")
+
+                    results.append({"building": device['building_id'], "device": device['name'],
+                                    "timestamp": datetime.datetime.now().timestamp(), "value": device_value,
+                                    "type": device['type'], "description": device['description'],
+                                    "object_id": device['object_id']})
+                except:
+                    sys.stderr.write(str(value))
+                    sys.stderr.write(str(device))
+
+            # Store data to HBase
+            hbase = connection_hbase(self.hbase)
+            data_source = self.datasources['ixon']
+            htable = get_HTable(hbase, "{}_{}_{}".format(data_source["hbase_name"], "data", value['company_label']),
+                                {"v": {}, "info": {}})
 
             # End Connections (Bacnet and VPN)
             bacnet.disconnect()
             subprocess.call(["sudo", "pkill", "openvpn"])
             # out = subprocess.run(["hostname", "-I"], stdout=subprocess.PIPE)
             # sys.stderr.write(out.stdout.decode(encoding="utf-8"))
-            yield key, str(x)
 
-    def reducer_init_mongo(self):
+            save_to_hbase(htable, results, [("v", ["value"]), ("info", ["type", "description", 'object_id'])],
+                          row_fields=['building', 'device', 'timestamp'])
+
+            yield key, str(results)
+
+    def reducer_init_databases(self):
         # Read and save MongoDB config
         with open('config.json', 'r') as file:
             config = json.load(file)
         self.connection = config['mongo_db']
+        self.hbase = config['hbase']
+        self.datasources = config['datasources']
 
     def steps(self):
         return [
             MRStep(mapper=self.mapper_get_available_agents),
             MRStep(mapper=self.mapper_generate_network_config),
-            MRStep(reducer_init=self.reducer_init_mongo, reducer=self.reducer_generate_vpn)
+            MRStep(reducer_init=self.reducer_init_databases, reducer=self.reducer_generate_vpn)
         ]
 
 

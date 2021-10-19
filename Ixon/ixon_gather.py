@@ -32,7 +32,7 @@ def generate_tsv(collection, output_path='out/output.tsv'):
         with open(output_path, 'w') as file:
             # file.write('Email\tPassword\tAPI_KEY\n')  # Header
             for i in collection.find({}):
-                file.write('%s\t%s\t%s\n' % (i['email'], i['password'], i['api_application']))
+                file.write('%s\t%s\t%s\t%s\n' % (i['email'], i['password'], i['api_application'], i['description']))
     except Exception as ex:
         log.error(ex)
 
@@ -72,6 +72,7 @@ if __name__ == '__main__':
     mr_job = MRIxonJob(args=[
         '-r', 'hadoop', 'hdfs:///output.tsv',
         '--file', 'Ixon.py',
+        '--file', 'utils.py#utils.py',
         '--file', 'vpn_template_0.ovpn',
         '--file', 'vpn_template_1.ovpn',
         '--file', 'vpn_template_2.ovpn',

@@ -65,12 +65,8 @@ def split_list(data_list,list_size):
     return result
 
 
-def load_datadis_hbase_by_cups(data_type):
-    config = get_config()
-    hbase = connection_hbase(config["hbase"])
-    HTable = 'datadis_' + data_type
-    htable = get_HTable(hbase, HTable, {"info": {}})
-    users_list = 
+def load_datadis_hbase_by_cups(data_type):    
+    cups_list = get_cups_list()
     for cups in cups_list:
         documents = get_data(data_type,cups)
         if len(documents) > 200000: 
@@ -78,6 +74,10 @@ def load_datadis_hbase_by_cups(data_type):
             for block in documents_partition:
                 print(cups)
                 try:
+                    config = get_config()
+                    hbase = connection_hbase(config["hbase"])
+                    HTable = 'datadis_' + data_type
+                    htable = get_HTable(hbase, HTable, {"info": {}})
                     save_to_hbase(htable,
                                   block,
                                   [("info", "all")],
@@ -95,7 +95,7 @@ def load_datadis_hbase_by_cups(data_type):
 
 
 def load_datadis_hbase(data_type):
-    documents = get_data(data_type,user)
+    documents = get_data(data_type)
     config = get_config()
     hbase = connection_hbase(config["hbase"])
     HTable = 'datadis_' + data_type

@@ -82,35 +82,6 @@ class MRIxonJob(MRJob):
 
     def reducer_generate_vpn(self, key, values):
         for value in values:
-            # Generate VPN Config
-            with open(f'vpn_template_{key}.ovpn', 'r') as file:
-                f = open(value['deviceId'].split('-')[1].strip() + '.ovpn', 'w')
-                content = file.read()
-                content += "\nroute {0} {1} {2}".format(value['network'], value['network_mask'], value['ip_vpn'])
-                # content += "\nroute 10.81.182.0 255.255.255.0 10.187.113.206"
-                f.write(content)
-                f.close()
-
-            # Connect to VPN
-            openvpn = subprocess.Popen(["sudo", "openvpn", f.name], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            interfaces = subprocess.run(["hostname", "-I"], stdout=subprocess.PIPE)
-            interfaces_list = interfaces.stdout.decode(encoding="utf-8").split(" ")
-
-            # Waiting to VPN connection
-            time_out = 5  # seconds
-            init_time = time.time()
-            waiting_time = 0.2
-
-            vpn_ip = [x for x in interfaces_list if re.match(vpn_network_ip, x)]
-
-            while not vpn_ip:
-                time.sleep(waiting_time)
-                interfaces = subprocess.run(["hostname", "-I"], stdout=subprocess.PIPE)
-                interfaces_list = interfaces.stdout.decode(encoding="utf-8").split(" ")
-                vpn_ip = [x for x in interfaces_list if re.match(vpn_network_ip, x)]
-                if time.time() - init_time > time_out:
-                    raise Exception("VPN Connection: Time out exceded.")
-
             # Recover devices from mongo
             URI = 'mongodb://%s:%s@%s:%s/%s' % (
                 self.connection['user'], self.connection['password'], self.connection['host'],
@@ -123,42 +94,74 @@ class MRIxonJob(MRJob):
 
             building_devices = list(collection.find({'building_id': value['deviceId']}, {'_id': 0}))
 
-            # Recover Data
-            # Open BACnet Connection
-            bacnet = BAC0.lite(ip=vpn_ip[0] + '/16', bbmdAddress=value['bacnet_device'] + ':47808', bbmdTTL=900)
+            if len(building_devices) > 0:
 
-            # Recover data for each device
-            results = []
+                # Generate VPN Config
+                with open(f'vpn_template_{key}.ovpn', 'r') as file:
+                    f = open(value['deviceId'].split('-')[1].strip() + '.ovpn', 'w')
+                    content = file.read()
+                    content += "\nroute {0} {1} {2}".format(value['network'], value['network_mask'], value['ip_vpn'])
+                    # content += "\nroute 10.81.182.0 255.255.255.0 10.187.113.206"
+                    f.write(content)
+                    f.close()
 
-            for device in building_devices:
-                try:
-                    device_value = bacnet.read(
-                        f"{value['bacnet_device']} {device['type']} {device['object_id']} presentValue")
+                # Connect to VPN
+                openvpn = subprocess.Popen(["sudo", "openvpn", f.name], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                interfaces = subprocess.run(["hostname", "-I"], stdout=subprocess.PIPE)
+                interfaces_list = interfaces.stdout.decode(encoding="utf-8").split(" ")
 
-                    results.append({"building": device['building_id'], "device": device['name'],
-                                    "timestamp": datetime.datetime.now().timestamp(), "value": device_value,
-                                    "type": device['type'], "description": device['description'],
-                                    "object_id": device['object_id']})
-                except:
-                    sys.stderr.write(str(value))
-                    sys.stderr.write(str(device))
+                # Waiting to VPN connection
+                time_out = 4  # seconds
+                init_time = time.time()
+                waiting_time = 0.2
 
-            # Store data to HBase
-            hbase = connection_hbase(self.hbase)
-            data_source = self.datasources['ixon']
-            htable = get_HTable(hbase, "{}_{}_{}".format(data_source["hbase_name"], "data", value['company_label']),
-                                {"v": {}, "info": {}})
+                vpn_ip = [x for x in interfaces_list if re.match(vpn_network_ip, x)]
 
-            # End Connections (Bacnet and VPN)
-            bacnet.disconnect()
-            subprocess.call(["sudo", "pkill", "openvpn"])
-            # out = subprocess.run(["hostname", "-I"], stdout=subprocess.PIPE)
-            # sys.stderr.write(out.stdout.decode(encoding="utf-8"))
+                while not vpn_ip:
+                    time.sleep(waiting_time)
+                    interfaces = subprocess.run(["hostname", "-I"], stdout=subprocess.PIPE)
+                    interfaces_list = interfaces.stdout.decode(encoding="utf-8").split(" ")
+                    vpn_ip = [x for x in interfaces_list if re.match(vpn_network_ip, x)]
+                    if time.time() - init_time > time_out:
+                        raise Exception("VPN Connection: Time out exceded.")
 
-            save_to_hbase(htable, results, [("v", ["value"]), ("info", ["type", "description", 'object_id'])],
-                          row_fields=['building', 'device', 'timestamp'])
+                # Recover Data
+                # Open BACnet Connection
+                bacnet = BAC0.lite(ip=vpn_ip[0] + '/16', bbmdAddress=value['bacnet_device'] + ':47808', bbmdTTL=900)
 
-            yield key, str(results)
+                # Recover data for each device
+                results = []
+
+                for device in building_devices:
+                    try:
+                        device_value = bacnet.read(
+                            f"{value['bacnet_device']} {device['type']} {device['object_id']} presentValue")
+                        # TODO: save value['description']
+                        results.append({"building": device['building_id'], "device": device['name'],
+                                        "timestamp": datetime.datetime.now().timestamp(), "value": device_value,
+                                        "type": device['type'], "description": device['description'],
+                                        "object_id": device['object_id']})
+                    except:
+                        sys.stderr.write(str(value))
+                        sys.stderr.write(str(device))
+
+                if len(results) > 0:
+                    # Store data to HBase
+                    hbase = connection_hbase(self.hbase)
+                    data_source = self.datasources['ixon']
+                    htable = get_HTable(hbase, "{}_{}_{}".format(data_source["hbase_name"], "data", value['company_label']),
+                                        {"v": {}, "info": {}})
+
+                    # End Connections (Bacnet and VPN)
+                    bacnet.disconnect()
+                    subprocess.call(["sudo", "pkill", "openvpn"])
+                    # out = subprocess.run(["hostname", "-I"], stdout=subprocess.PIPE)
+                    # sys.stderr.write(out.stdout.decode(encoding="utf-8"))
+
+                    save_to_hbase(htable, results, [("v", ["value"]), ("info", ["type", "description", 'object_id'])],
+                                  row_fields=['building', 'device', 'timestamp'])
+
+                yield key, str(results)
 
     def reducer_init_databases(self):
         # Read and save MongoDB config

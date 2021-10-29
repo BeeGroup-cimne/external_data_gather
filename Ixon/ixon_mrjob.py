@@ -97,7 +97,7 @@ class MRIxonJob(MRJob):
             if len(building_devices) > 0:
 
                 # Generate VPN Config
-                with open(f'vpn_files/vpn_template_{key}.ovpn', 'r') as file:
+                with open(f'vpn_template_{key}.ovpn', 'r') as file:
                     f = open(value['deviceId'].split('-')[1].strip() + '.ovpn', 'w')
                     content = file.read()
                     content += "\nroute {0} {1} {2}".format(value['network'], value['network_mask'], value['ip_vpn'])
@@ -149,7 +149,8 @@ class MRIxonJob(MRJob):
                     # Store data to HBase
                     hbase = connection_hbase(self.hbase)
                     data_source = self.datasources['ixon']
-                    htable = get_HTable(hbase, "{}_{}_{}".format(data_source["hbase_name"], "data", value['company_label']),
+                    htable = get_HTable(hbase,
+                                        "{}_{}_{}".format(data_source["hbase_name"], "data", value['company_label']),
                                         {"v": {}, "info": {}})
 
                     # End Connections (Bacnet and VPN)
@@ -161,7 +162,7 @@ class MRIxonJob(MRJob):
                     save_to_hbase(htable, results, [("v", ["value"]), ("info", ["type", "description", 'object_id'])],
                                   row_fields=['building', 'device', 'timestamp'])
 
-                yield key, str(results)
+                # yield key, str(results)
 
     def reducer_init_databases(self):
         # Read and save MongoDB config

@@ -1,4 +1,4 @@
-FROM python:3.8
+FROM docker.tech.beegroup-cimne.com/admin/enma-job:latest
 RUN apt-get update && apt-get install -y build-essential libsasl2-dev
 
 WORKDIR /ixon_mr/

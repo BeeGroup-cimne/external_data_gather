@@ -82,7 +82,8 @@ if __name__ == '__main__':
         '--jobconf', 'mapreduce.map.env={},{},{}'.format(MOUNTS, IMAGE, RUNTYPE),  # PRIVILEGED, DISABLE),
         '--jobconf', 'mapreduce.reduce.env={},{},{}'.format(MOUNTS, IMAGE, RUNTYPE),  # PRIVILEGED, DISABLE),
         '--jobconf', 'mapreduce.job.name=ixon_gather',
-        '--output-dir', 'ixon_output'
+        '--jobconf', 'mapreduce.job.reduces=5',
+        # '--output-dir', 'ixon_output'
     ])
 
     with mr_job.make_runner() as runner:

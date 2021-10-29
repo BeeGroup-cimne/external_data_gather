@@ -97,7 +97,7 @@ class MRIxonJob(MRJob):
             if len(building_devices) > 0:
 
                 # Generate VPN Config
-                with open(f'vpn_template_{key}.ovpn', 'r') as file:
+                with open(f'vpn_files/vpn_template_{key}.ovpn', 'r') as file:
                     f = open(value['deviceId'].split('-')[1].strip() + '.ovpn', 'w')
                     content = file.read()
                     content += "\nroute {0} {1} {2}".format(value['network'], value['network_mask'], value['ip_vpn'])

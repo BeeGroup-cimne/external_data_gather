@@ -66,18 +66,18 @@ if __name__ == '__main__':
         log.error(ex)
 
     MOUNTS = 'YARN_CONTAINER_RUNTIME_DOCKER_MOUNTS=/dev/net/tun:/dev/net/tun:rw'
-    IMAGE = 'YARN_CONTAINER_RUNTIME_DOCKER_IMAGE=beerepo.tech.beegroup-cimne.com:5000/ixon_mr'
+    IMAGE = 'YARN_CONTAINER_RUNTIME_DOCKER_IMAGE=docker.tech.beegroup-cimne.com/admin/ixon_mr'
     RUNTYPE = 'YARN_CONTAINER_RUNTIME_TYPE=docker'
 
     mr_job = MRIxonJob(args=[
         '-r', 'hadoop', 'hdfs:///output.tsv',
         '--file', 'Ixon.py',
         '--file', 'utils.py#utils.py',
-        '--file', 'vpn_template_0.ovpn',
-        '--file', 'vpn_template_1.ovpn',
-        '--file', 'vpn_template_2.ovpn',
-        '--file', 'vpn_template_3.ovpn',
-        '--file', 'vpn_template_4.ovpn',
+        '--file', 'vpn_files/vpn_template_0.ovpn',
+        '--file', 'vpn_files/vpn_template_1.ovpn',
+        '--file', 'vpn_files/vpn_template_2.ovpn',
+        '--file', 'vpn_files/vpn_template_3.ovpn',
+        '--file', 'vpn_files/vpn_template_4.ovpn',
         '--file', 'config.json#config.json',
         '--jobconf', 'mapreduce.map.env={},{},{}'.format(MOUNTS, IMAGE, RUNTYPE),  # PRIVILEGED, DISABLE),
         '--jobconf', 'mapreduce.reduce.env={},{},{}'.format(MOUNTS, IMAGE, RUNTYPE),  # PRIVILEGED, DISABLE),

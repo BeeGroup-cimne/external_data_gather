@@ -5,9 +5,9 @@ from datetime import datetime
 
 
 def setup_logger(log_name):
-    LOGFILE = 'logs/{0}.{1}.log'.format(
-        log_name,
-        datetime.now().strftime('%Y%m%dT%H%M%S'))
+    # LOGFILE = 'logs/{0}.{1}.log'.format(
+    #     log_name,
+    #     datetime.now().strftime('%Y%m%dT%H%M%S'))
 
     DEFAULT_LOGGING = {
         'version': 1,
@@ -26,19 +26,19 @@ def setup_logger(log_name):
                 'formatter': 'standard',
                 'level': 'DEBUG',
                 'stream': sys.stdout,
-            },
-            'file': {
-                'class': 'logging.FileHandler',
-                'formatter': 'standard',
-                'level': 'INFO',
-                'filename': LOGFILE,
-                'mode': 'w',
-            },
+            }
+            # 'file': {
+            #     'class': 'logging.FileHandler',
+            #     'formatter': 'standard',
+            #     'level': 'INFO',
+            #     'filename': LOGFILE,
+            #     'mode': 'w',
+            # },
         },
         'loggers': {
             __name__: {
                 'level': 'DEBUG',
-                'handlers': ['console', 'file'],
+                'handlers': ['console'],
                 'propagate': False,
             },
         }

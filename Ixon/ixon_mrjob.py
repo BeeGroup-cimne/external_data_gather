@@ -127,7 +127,7 @@ class MRIxonJob(MRJob):
 
                 # Recover Data
                 # Open BACnet Connection
-                bacnet = BAC0.lite(ip=vpn_ip[0] + '/16', bbmdAddress=value['bacnet_device'] + ':47808', bbmdTTL=900)
+                bacnet = BAC0.lite(ip=vpn_ip[0] + '/16', bbmdAddress=value['ip_vpn'] + ':47808', bbmdTTL=900)
 
                 # Recover data for each device
                 results = []

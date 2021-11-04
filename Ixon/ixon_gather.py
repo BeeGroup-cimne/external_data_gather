@@ -92,3 +92,5 @@ if __name__ == '__main__':
 
     with mr_job.make_runner() as runner:
         runner.run()
+
+    exit(0)

@@ -6,6 +6,7 @@ import sys
 sys.path.append(os.getcwd())
 from utils import *
 
+
 data_type_source = {"contracts": "contracts_datadis",
                     "supplies": "supplies_datadis",
                     "max_power": "max_power_datadis",
@@ -72,9 +73,10 @@ def load_datadis_hbase_by_cups(data_type):
                           documents,
                           [("info", "all")],
                           row_fields=["cups", "datetime"])
+
             print('loaded')
         except Exception as e:
-            print('ERROR load to hbase:%s' % e)    
+            print('ERROR load to hbase:%s' % e)
             
 
 def load_datadis_hbase(data_type):

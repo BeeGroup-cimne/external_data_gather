@@ -82,6 +82,7 @@ class MRIxonJob(MRJob):
 
     def reducer_generate_vpn(self, key, values):
         for value in values:
+            sys.stderr.write(str(value))
             # Recover devices from mongo
             URI = 'mongodb://%s:%s@%s:%s/%s' % (
                 self.connection['user'], self.connection['password'], self.connection['host'],
@@ -90,9 +91,10 @@ class MRIxonJob(MRJob):
 
             mongo_connection = MongoClient(URI)
             db = mongo_connection[self.connection['db']]
-            collection = db['ixon_devices']
+            ixon_devices = db['ixon_devices']
+            ixon_logs = db['ixon_logs']
 
-            building_devices = list(collection.find({'building_id': value['deviceId']}, {'_id': 0}))
+            building_devices = list(ixon_devices.find({'building_id': value['deviceId']}, {'_id': 0}))
 
             if len(building_devices) > 0:
 
@@ -123,44 +125,80 @@ class MRIxonJob(MRJob):
                     interfaces_list = interfaces.stdout.decode(encoding="utf-8").split(" ")
                     vpn_ip = [x for x in interfaces_list if re.match(vpn_network_ip, x)]
                     if time.time() - init_time > time_out:
+                        # TODO: Alarma connexio perduda.
                         raise Exception("VPN Connection: Time out exceded.")
 
                 # Recover Data
                 # Open BACnet Connection
-                bacnet = BAC0.lite(ip=vpn_ip[0] + '/16', bbmdAddress=value['ip_vpn'] + ':47808', bbmdTTL=900)
+                results = []
+                tries_to_connect = 0
+                while tries_to_connect < 3:
+                    try:
+                        bacnet = BAC0.lite(ip=vpn_ip[0] + '/16', bbmdAddress=value['ip_vpn'] + ':47808', bbmdTTL=900)
+                        break
+                    except Exception as ex:
+                        tries_to_connect += 1
+                        sys.stderr.write(str(ex))
+                        sys.stderr.write(str(value))
+                        time.sleep(1)
+
+                if tries_to_connect == 3:
+                    continue
 
                 # Recover data for each device
-                results = []
-
                 for device in building_devices:
                     try:
                         device_value = bacnet.read(
-                            f"{value['bacnet_device']} {device['type']} {device['object_id']} presentValue")
+                            f"{device['bacnet_device_ip']} {device['type']} {device['object_id']} presentValue")
+
                         # TODO: save value['description']
+
                         results.append({"building": device['building_id'], "device": device['name'],
                                         "timestamp": datetime.datetime.now().timestamp(), "value": device_value,
                                         "type": device['type'], "description": device['description'],
                                         "object_id": device['object_id']})
-                    except:
-                        sys.stderr.write(str(value))
+
+                        # LOG
+                        ixon_logs.insert_one(
+                            {'building_id': device['building_id'], 'building_name': device['building_name'],
+                             'device_name': device['name'],
+                             'device_id': device['object_id'], 'device_type': device['type'], 'successful': True,
+                             'date': datetime.datetime.utcnow()})
+
+                    except Exception as ex:
+                        sys.stderr.write(str(ex))
                         sys.stderr.write(str(device))
+
+                        ixon_logs.insert_one(
+                            {'building_id': device['building_id'], 'building_name': device['building_name'],
+                             'device_name': device['name'],
+                             'device_id': device['object_id'], 'device_type': device['type'], 'successful': False,
+                             'date': datetime.datetime.utcnow()})
 
                 if len(results) > 0:
                     # Store data to HBase
-                    hbase = connection_hbase(self.hbase)
-                    data_source = self.datasources['ixon']
-                    htable = get_HTable(hbase,
-                                        "{}_{}_{}".format(data_source["hbase_name"], "data", value['company_label']),
-                                        {"v": {}, "info": {}})
+                    try:
+                        hbase = connection_hbase(self.hbase)
+                        data_source = self.datasources['ixon']
+                        htable = get_HTable(hbase,
+                                            "{}_{}_{}".format(data_source["hbase_name"], "data",
+                                                              value['company_label']),
+                                            {"v": {}, "info": {}})
+
+                        save_to_hbase(htable, results,
+                                      [("v", ["value"]), ("info", ["type", "description", 'object_id'])],
+                                      row_fields=['building', 'device', 'timestamp'])
+                    except Exception as ex:
+                        sys.stderr.write(str(ex))
 
                     # End Connections (Bacnet and VPN)
-                    bacnet.disconnect()
-                    subprocess.call(["sudo", "pkill", "openvpn"])
-                    # out = subprocess.run(["hostname", "-I"], stdout=subprocess.PIPE)
-                    # sys.stderr.write(out.stdout.decode(encoding="utf-8"))
-
-                    save_to_hbase(htable, results, [("v", ["value"]), ("info", ["type", "description", 'object_id'])],
-                                  row_fields=['building', 'device', 'timestamp'])
+                    try:
+                        bacnet.disconnect()
+                        subprocess.call(["sudo", "pkill", "openvpn"])
+                    except Exception as ex:
+                        sys.stderr.write(str(ex))
+                        # out = subprocess.run(["hostname", "-I"], stdout=subprocess.PIPE)
+                        # sys.stderr.write(out.stdout.decode(encoding="utf-8"))
 
                 # yield key, str(results)
 

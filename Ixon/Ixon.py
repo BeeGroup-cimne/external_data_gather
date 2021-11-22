@@ -245,6 +245,3 @@ if __name__ == '__main__':
         aux = i.get_agent_network_data(x['publicId'])
         if aux is not None:
             print('%s [%s]: %s' % (x['name'], x['publicId'], aux))
-
-# Escola La Sequia [8Cp3RkM5nuqz]: {'my_vpn_ip': '10.187.10.1/16', 'description': None, 'ip_vpn': '10.187.101.190', 'network': '10.81.182.0', 'network_mask': '255.255.255.0', 'network_mask_bits': 24, 'deviceId': 'C0:D3:91:32:6E:33 - 17104114', 'bacnet_device': '10.81.182.10'}
-# CAP Primer de Maig [iLJ0JLyX9kCl]: {'my_vpn_ip': '10.187.10.1/16', 'description': 'CAP-06373', 'ip_vpn': '10.187.113.206', 'network': '10.81.182.0', 'network_mask': '255.255.255.0', 'network_mask_bits': 24, 'deviceId': 'C0:D3:91:31:E9:B1 - 17087108', 'bacnet_device': '10.81.182.10'}

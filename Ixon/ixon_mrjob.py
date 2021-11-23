@@ -81,18 +81,19 @@ class MRIxonJob(MRJob):
             print(ex)
 
     def reducer_generate_vpn(self, key, values):
-        for value in values:
-            sys.stderr.write(str(value))
-            # Recover devices from mongo
-            URI = 'mongodb://%s:%s@%s:%s/%s' % (
-                self.connection['user'], self.connection['password'], self.connection['host'],
-                self.connection['port'],
-                self.connection['db'])
 
-            mongo_connection = MongoClient(URI)
-            db = mongo_connection[self.connection['db']]
-            ixon_devices = db['ixon_devices']
-            ixon_logs = db['ixon_logs']
+        # Recover devices from mongo
+        URI = 'mongodb://%s:%s@%s:%s/%s' % (
+            self.connection['user'], self.connection['password'], self.connection['host'],
+            self.connection['port'],
+            self.connection['db'])
+
+        mongo_connection = MongoClient(URI)
+        db = mongo_connection[self.connection['db']]
+        ixon_devices = db['ixon_devices']
+        ixon_logs = db['ixon_logs']
+
+        for value in values:
 
             building_devices = list(ixon_devices.find({'building_id': value['deviceId']}, {'_id': 0}))
 
@@ -103,7 +104,6 @@ class MRIxonJob(MRJob):
                     f = open(value['deviceId'].split('-')[1].strip() + '.ovpn', 'w')
                     content = file.read()
                     content += "\nroute {0} {1} {2}".format(value['network'], value['network_mask'], value['ip_vpn'])
-                    # content += "\nroute 10.81.182.0 255.255.255.0 10.187.113.206"
                     f.write(content)
                     f.close()
 
@@ -113,7 +113,7 @@ class MRIxonJob(MRJob):
                 interfaces_list = interfaces.stdout.decode(encoding="utf-8").split(" ")
 
                 # Waiting to VPN connection
-                time_out = 4  # seconds
+                time_out = 3  # seconds
                 init_time = time.time()
                 waiting_time = 0.2
 
@@ -131,19 +131,10 @@ class MRIxonJob(MRJob):
                 # Recover Data
                 # Open BACnet Connection
                 results = []
-                tries_to_connect = 0
-                while tries_to_connect < 3:
-                    try:
-                        bacnet = BAC0.lite(ip=vpn_ip[0] + '/16', bbmdAddress=value['ip_vpn'] + ':47808', bbmdTTL=900)
-                        break
-                    except Exception as ex:
-                        tries_to_connect += 1
-                        sys.stderr.write(str(ex))
-                        sys.stderr.write(str(value))
-                        time.sleep(1)
+                logs = []
 
-                if tries_to_connect == 3:
-                    continue
+                bacnet = BAC0.lite(ip=vpn_ip[0] + '/16', bbmdAddress=value['ip_vpn'] + ':47808', bbmdTTL=900)
+
 
                 # Recover data for each device
                 for device in building_devices:
@@ -158,22 +149,24 @@ class MRIxonJob(MRJob):
                                         "type": device['type'], "description": device['description'],
                                         "object_id": device['object_id']})
 
-                        # LOG
-                        ixon_logs.insert_one(
-                            {'building_id': device['building_id'], 'building_name': device['building_name'],
-                             'device_name': device['name'],
-                             'device_id': device['object_id'], 'device_type': device['type'], 'successful': True,
-                             'date': datetime.datetime.utcnow()})
+                        logs.append({'building_id': device['building_id'], 'building_name': device['building_name'],
+                                     'device_name': device['name'],
+                                     'device_id': device['object_id'], 'device_type': device['type'],
+                                     'successful': True,
+                                     'date': datetime.datetime.utcnow()})
 
                     except Exception as ex:
-                        sys.stderr.write(str(ex))
-                        sys.stderr.write(str(device))
-
-                        ixon_logs.insert_one(
+                        logs.append(
                             {'building_id': device['building_id'], 'building_name': device['building_name'],
                              'device_name': device['name'],
                              'device_id': device['object_id'], 'device_type': device['type'], 'successful': False,
                              'date': datetime.datetime.utcnow()})
+
+                if len(logs) > 0:
+                    try:
+                        ixon_logs.insert_many(logs)
+                    except Exception as ex:
+                        sys.stderr.write(str(ex))
 
                 if len(results) > 0:
                     # Store data to HBase
@@ -191,14 +184,14 @@ class MRIxonJob(MRJob):
                     except Exception as ex:
                         sys.stderr.write(str(ex))
 
-                    # End Connections (Bacnet and VPN)
-                    try:
-                        bacnet.disconnect()
-                        subprocess.call(["sudo", "pkill", "openvpn"])
-                    except Exception as ex:
-                        sys.stderr.write(str(ex))
-                        # out = subprocess.run(["hostname", "-I"], stdout=subprocess.PIPE)
-                        # sys.stderr.write(out.stdout.decode(encoding="utf-8"))
+                # End Connections (Bacnet and VPN)
+                try:
+                    bacnet.disconnect()
+                    subprocess.call(["sudo", "pkill", "openvpn"])
+                except Exception as ex:
+                    sys.stderr.write(str(ex))
+                    # out = subprocess.run(["hostname", "-I"], stdout=subprocess.PIPE)
+                    # sys.stderr.write(out.stdout.decode(encoding="utf-8"))
 
                 # yield key, str(results)
 

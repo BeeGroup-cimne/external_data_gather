@@ -93,11 +93,12 @@ class MRIxonJob(MRJob):
         ixon_devices = db['ixon_devices']
         ixon_logs = db['ixon_logs']
 
-        for value in values:
+        for value in values:  # buildings
 
             building_devices = list(ixon_devices.find({'building_id': value['deviceId']}, {'_id': 0}))
 
             if len(building_devices) > 0:
+                # sys.stderr.write(str(building_devices[0]['building_name']) + "\n")
 
                 # Generate VPN Config
                 with open(f'vpn_template_{key}.ovpn', 'r') as file:
@@ -113,7 +114,7 @@ class MRIxonJob(MRJob):
                 interfaces_list = interfaces.stdout.decode(encoding="utf-8").split(" ")
 
                 # Waiting to VPN connection
-                time_out = 3  # seconds
+                time_out = 4  # seconds
                 init_time = time.time()
                 waiting_time = 0.2
 
@@ -134,7 +135,6 @@ class MRIxonJob(MRJob):
                 logs = []
 
                 bacnet = BAC0.lite(ip=vpn_ip[0] + '/16', bbmdAddress=value['ip_vpn'] + ':47808', bbmdTTL=900)
-
 
                 # Recover data for each device
                 for device in building_devices:
@@ -162,6 +162,10 @@ class MRIxonJob(MRJob):
                              'device_id': device['object_id'], 'device_type': device['type'], 'successful': False,
                              'date': datetime.datetime.utcnow()})
 
+                # End Connections (Bacnet and VPN)
+                bacnet.disconnect()
+                subprocess.call(["sudo", "pkill", "openvpn"])
+
                 if len(logs) > 0:
                     try:
                         ixon_logs.insert_many(logs)
@@ -184,14 +188,8 @@ class MRIxonJob(MRJob):
                     except Exception as ex:
                         sys.stderr.write(str(ex))
 
-                # End Connections (Bacnet and VPN)
-                try:
-                    bacnet.disconnect()
-                    subprocess.call(["sudo", "pkill", "openvpn"])
-                except Exception as ex:
-                    sys.stderr.write(str(ex))
-                    # out = subprocess.run(["hostname", "-I"], stdout=subprocess.PIPE)
-                    # sys.stderr.write(out.stdout.decode(encoding="utf-8"))
+                # out = subprocess.run(["hostname", "-I"], stdout=subprocess.PIPE)
+                # sys.stderr.write(out.stdout.decode(encoding="utf-8"))
 
                 # yield key, str(results)
 

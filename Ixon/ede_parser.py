@@ -5,7 +5,7 @@ import pandas as pd
 from pymongo import MongoClient
 
 bacnet_type = {'0': 'analogInput', '1': 'analogOutput', '2': 'analogValue', '3': 'binaryInput', '4': 'binaryOutput',
-               '5': 'binaryValue', '13': 'multistateInput', '14': 'multistateOutput', '19': 'multistateValue'}
+               '5': 'binaryValue', '13': 'multiStateInput', '14': 'multiStateOutput', '19': 'multiStateValue'}
 
 if __name__ == '__main__':
     """

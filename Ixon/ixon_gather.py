@@ -86,7 +86,7 @@ if __name__ == '__main__':
         '--jobconf', 'mapreduce.map.env={},{},{}'.format(MOUNTS, IMAGE, RUNTYPE),  # PRIVILEGED, DISABLE),
         '--jobconf', 'mapreduce.reduce.env={},{},{}'.format(MOUNTS, IMAGE, RUNTYPE),  # PRIVILEGED, DISABLE),
         '--jobconf', 'mapreduce.job.name=ixon_gather',
-        '--jobconf', 'mapreduce.job.reduces=5',
+        # '--jobconf', 'mapreduce.job.reduces=5',
         # '--output-dir', 'ixon_output'
     ])
 

@@ -3,6 +3,7 @@ import json
 import re
 import subprocess
 import sys
+import time
 
 import BAC0
 import requests
@@ -98,7 +99,7 @@ class MRIxonJob(MRJob):
             building_devices = list(ixon_devices.find({'building_id': value['deviceId']}, {'_id': 0}))
 
             if len(building_devices) > 0:
-                # sys.stderr.write(str(building_devices[0]['building_name']) + "\n")
+                sys.stderr.write(str(building_devices[0]['building_name']) + "\n")
 
                 # Generate VPN Config
                 with open(f'vpn_template_{key}.ovpn', 'r') as file:
@@ -133,8 +134,20 @@ class MRIxonJob(MRJob):
                 # Open BACnet Connection
                 results = []
                 logs = []
+                current_time = time.time()
+                aux = False
 
-                bacnet = BAC0.lite(ip=vpn_ip[0] + '/16', bbmdAddress=value['ip_vpn'] + ':47808', bbmdTTL=900)
+                while not aux and time.time() - current_time < 4:
+                    try:
+                        bacnet = BAC0.lite(ip=vpn_ip[0] + '/16', bbmdAddress=value['ip_vpn'] + ':47808', bbmdTTL=900)
+                        aux = True
+                    except:
+                        sys.stderr.write("BacNET Fail: %s " % str(building_devices[0]['building_name']) + "\n")
+                        time.sleep(0.2)
+
+                if not aux:
+                    subprocess.call(["sudo", "pkill", "openvpn"])
+                    continue
 
                 # Recover data for each device
                 for device in building_devices:

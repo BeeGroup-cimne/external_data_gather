@@ -10,34 +10,6 @@ from utils import *
 
 BATCH = 1000
 
-data_types ={
-    "entities": {
-        "name": "entities",
-        "endpoint": gemweb.ENDPOINTS.GET_INVENTORY,
-        "category": "entitats"
-    },
-    "buildings": {
-        "name": "buildings",
-        "endpoint": gemweb.ENDPOINTS.GET_INVENTORY,
-        "category": "centres_consum"
-    },
-    "solarpv": {
-        "name": "solarpv",
-        "endpoint": gemweb.ENDPOINTS.GET_INVENTORY,
-        "category": "instalacions_solars"
-    },
-    "supplies": {
-        "name": "supplies",
-        "endpoint": gemweb.ENDPOINTS.GET_INVENTORY,
-        "category": "subministraments"
-    },
-    "invoices": {
-        "name": "invoices",
-        "endpoint": gemweb.ENDPOINTS.GET_INVENTORY,
-        "category": "factures"
-    }
-}
-
 
 def update_static_data(data_type, mongo_conf, hbase_conf, connection, data_source, gemweb):
     version = connection[data_type['name']]['version'] + 1

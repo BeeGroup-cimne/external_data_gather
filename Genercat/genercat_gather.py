@@ -1,14 +1,4 @@
-import json
 import pandas as pd
-import os
-import sys
-sys.path.append(os.getcwd())
-from utils import *
-
-
-def get_config():
-    f = open("Genercat/config.json", "r")
-    return json.load(f)
 
 
 def get_code_ens(text):
@@ -25,47 +15,18 @@ def get_code_ens(text):
         pos = -1
 
     if pos > 0:
-        return text[pos:].strip()
+        return text[pos+1:].strip()
     else:
         return None
 
 
-def is_nan(num):
-    try:
-        if float('-inf') < float(num) < float('inf'):
-            return False
-        else:
-            return True
-    except Exception:
-        return False
+def get_data(file):
+    columns = ['building_CodeEns_GPG', 'improvement_type_level1',
+       'improvement_type_level2', 'improvement_type_level3',
+       'improvement_type_level4', 'description', 'improvement_percentage',
+       'date_start', 'Data de finalització de l obra / millora',
+       'investment_without_tax', 'energy_type', 'observations']
+    df = pd.read_excel(file, names=columns)
+    df["codeEns"] = df["building_CodeEns_GPG"].apply(get_code_ens)
+    return df.to_dict(orient="records")
 
-
-def get_data():
-    df = pd.read_excel('Genercat/data/genercat.xls')
-    columns = list(df.columns)
-    df["codeEns"] = df["building_CodeEns_GPG"].apply(get_codeEns)
-
-    data = []
-    for i in range(0, len(df)):
-        item = {}
-        for pos, column_name in list(enumerate(columns)):
-            if not isNaN(df.iloc[i, pos]):
-                if column_name == "improvement_percentage":
-                    item[column_name] = str(df.iloc[i, pos])
-                else:
-                    item[column_name] = df.iloc[i, pos]
-        data.append(item)
-    return data
-
-
-def load_genercat_hbase():
-    config = get_config()
-    hbase = connection_hbase(config["hbase"])
-    HTable = 'genercat'
-    htable = get_HTable(hbase, HTable, {"info": {}})
-    documents = get_data()
-    save_to_hbase(htable, documents, [("info", "all")], row_fields=None)
-
-
-if __name__ == "__main__":
-    load_genercat_hbase()

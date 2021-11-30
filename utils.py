@@ -51,7 +51,7 @@ def save_to_hbase(HTable, documents, cf_mapping, row_fields=None, version=int(ti
             row = row_auto
             row_auto += 1
         else:
-            row = "~".join([str(d.pop(f) ) if f in d else "" for f in row_fields])
+            row = "~".join([str(d.pop(f)) if f in d else "" for f in row_fields])
         values = {}
         for cf, fields in cf_mapping:
             if fields == "all":

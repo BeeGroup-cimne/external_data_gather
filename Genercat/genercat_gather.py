@@ -11,7 +11,7 @@ def get_config():
     return json.load(f)
 
 
-def get_codeEns(text):
+def get_code_ens(text):
     if isinstance(text, str):
         if text.find("-") > 0:
             pos = text.find("-")
@@ -30,7 +30,7 @@ def get_codeEns(text):
         return None
 
 
-def isNaN(num):
+def is_nan(num):
     try:
         if float('-inf') < float(num) < float('inf'):
             return False

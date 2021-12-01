@@ -16,6 +16,8 @@ from utils import *
 NUM_VPNS_CONFIG = 5
 vpn_network_ip = "(^| )10\.187"
 
+vpn_dict = {'0': '10.187.10.1', '1': '10.187.10.15', '2': '10.187.10.12', '3': '10.187.10.13', '4': '10.187.10.14'}
+
 
 class MRIxonJob(MRJob):
     def mapper_get_available_agents(self, _, line):
@@ -83,6 +85,8 @@ class MRIxonJob(MRJob):
 
     def reducer_generate_vpn(self, key, values):
 
+        sys.stderr.write(str(key))
+
         # Recover devices from mongo
         URI = 'mongodb://%s:%s@%s:%s/%s' % (
             self.connection['user'], self.connection['password'], self.connection['host'],
@@ -114,21 +118,26 @@ class MRIxonJob(MRJob):
                 interfaces = subprocess.run(["hostname", "-I"], stdout=subprocess.PIPE)
                 interfaces_list = interfaces.stdout.decode(encoding="utf-8").split(" ")
 
+                sys.stderr.write(str(interfaces_list))
+
                 # Waiting to VPN connection
                 time_out = 4  # seconds
                 init_time = time.time()
                 waiting_time = 0.2
 
-                vpn_ip = [x for x in interfaces_list if re.match(vpn_network_ip, x)]
+                connected = vpn_dict[str(key)] in interfaces_list
 
-                while not vpn_ip:
+                while not connected:
                     time.sleep(waiting_time)
                     interfaces = subprocess.run(["hostname", "-I"], stdout=subprocess.PIPE)
                     interfaces_list = interfaces.stdout.decode(encoding="utf-8").split(" ")
-                    vpn_ip = [x for x in interfaces_list if re.match(vpn_network_ip, x)]
+                    connected = vpn_dict[str(key)] in interfaces_list
                     if time.time() - init_time > time_out:
                         # TODO: Alarma connexio perduda.
                         raise Exception("VPN Connection: Time out exceded.")
+
+                vpn_ip = vpn_dict[str(key)]
+                sys.stderr.write(str(vpn_ip))
 
                 # Recover Data
                 # Open BACnet Connection
@@ -139,7 +148,7 @@ class MRIxonJob(MRJob):
 
                 while not aux and time.time() - current_time < 4:
                     try:
-                        bacnet = BAC0.lite(ip=vpn_ip[0] + '/16', bbmdAddress=value['ip_vpn'] + ':47808', bbmdTTL=900)
+                        bacnet = BAC0.lite(ip=vpn_ip + '/16', bbmdAddress=value['ip_vpn'] + ':47808', bbmdTTL=900)
                         aux = True
                     except:
                         sys.stderr.write("BacNET Fail: %s " % str(building_devices[0]['building_name']) + "\n")

@@ -7,9 +7,9 @@ if __name__ == '__main__':
     ap = argparse.ArgumentParser()
     ap.add_argument("-f", "--file", required=True, help="Excel file path to parse")
     ap.add_argument("-u", "--user", required=True, help="Excel file path to parse")
-    args_t = ["-f", "GPG/data/Llistat immobles alta inventari (13-04-2021).xlsx", "-u", "eloi"]
+    #args_t = ["-f", "GPG/data/Llistat immobles alta inventari (13-04-2021).xlsx", "-u", "eloi"]
 
-    args = vars(ap.parse_args(args_t))
+    args = vars(ap.parse_args())
     with open("./config.json") as config_f:
         config = json.load(config_f)
     gpg_list = read_data_from_xlsx(file=args['file'])

@@ -1,5 +1,6 @@
 import datetime
 import json
+import random
 import re
 import subprocess
 import sys
@@ -142,7 +143,7 @@ class MRIxonJob(MRJob):
                 # Recover Data
                 # Open BACnet Connection
                 results = []
-                logs = []
+                devices_logs = []
                 current_time = time.time()
                 aux = False
 
@@ -150,12 +151,17 @@ class MRIxonJob(MRJob):
                     try:
                         bacnet = BAC0.lite(ip=vpn_ip + '/16', bbmdAddress=value['ip_vpn'] + ':47808', bbmdTTL=900)
                         aux = True
-                    except:
-                        sys.stderr.write("BacNET Fail: %s " % str(building_devices[0]['building_name']) + "\n")
+                    except Exception as ex:
+                        sys.stderr.write(str(ex))
+                        sys.stderr.write("%s " % str(building_devices[0]['building_name']) + "\n")
                         time.sleep(0.2)
 
                 if not aux:
                     subprocess.call(["sudo", "pkill", "openvpn"])
+                    ixon_logs.insert_one(
+                        {'building_id': value['deviceId'], "building_name": building_devices[0]['building_name'],
+                         "devices_logs": devices_logs,
+                         "date": datetime.datetime.utcnow(), "successful": False})
                     continue
 
                 # Recover data for each device
@@ -171,28 +177,22 @@ class MRIxonJob(MRJob):
                                         "type": device['type'], "description": device['description'],
                                         "object_id": device['object_id']})
 
-                        logs.append({'building_id': device['building_id'], 'building_name': device['building_name'],
-                                     'device_name': device['name'],
-                                     'device_id': device['object_id'], 'device_type': device['type'],
-                                     'successful': True,
-                                     'date': datetime.datetime.utcnow()})
-
+                        devices_logs.append({'device_name': device['name'],
+                                             'device_id': device['object_id'], 'device_type': device['type'],
+                                             'successful': True})
                     except Exception as ex:
-                        logs.append(
-                            {'building_id': device['building_id'], 'building_name': device['building_name'],
-                             'device_name': device['name'],
-                             'device_id': device['object_id'], 'device_type': device['type'], 'successful': False,
-                             'date': datetime.datetime.utcnow()})
+                        devices_logs.append({'device_name': device['name'],
+                                             'device_id': device['object_id'], 'device_type': device['type'],
+                                             'successful': False})
 
                 # End Connections (Bacnet and VPN)
                 bacnet.disconnect()
                 subprocess.call(["sudo", "pkill", "openvpn"])
 
-                if len(logs) > 0:
-                    try:
-                        ixon_logs.insert_many(logs)
-                    except Exception as ex:
-                        sys.stderr.write(str(ex))
+                ixon_logs.insert_one(
+                    {'building_id': value['deviceId'], "building_name": building_devices[0]['building_name'],
+                     "devices_logs": devices_logs,
+                     "date": datetime.datetime.utcnow(), "successful": True})
 
                 if len(results) > 0:
                     # Store data to HBase

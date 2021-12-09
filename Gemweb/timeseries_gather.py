@@ -9,58 +9,147 @@ import sys
 sys.path.append(os.getcwd())
 from utils import *
 from Gemweb.gemweb_gather_mr import Gemweb_gather
-# read config file and send it to mapreduce
-with open("./config.json") as config_f:
-    config = json.load(config_f)
+import datetime
 
-mongo = connection_mongo(config['mongo_db'])
-data_source = config['datasources']['gemweb']
-for connection in mongo[data_source['info']].find({}):
-    # connection = mongo[data_source['info']].find_one({})
-    # create supplies hdfs file to perform mapreduce
-    hbase_table = f"raw_data:gemweb_supplies_{connection['user']}"
-    hdfs_file = f"supplies_{connection['user']}"
+if __name__ == '__main__':
+    ap = argparse.ArgumentParser()
+    ap.add_argument("-freq", "--frequency", required=True, help="frequency of data to import: one of {}".format(
+        list(Gemweb_gather.frequencies.keys())+["all"]))
+    ap.add_argument("-l", "--limit", required=False, help="The limit of packages to run at one execution")
+    ap.add_argument("-d", "--device", required=False, help="The device to start obtaining data")
+    ap.add_argument("-df", "--date_from", required=False, help="The date from when to obtain data")
+    ap.add_argument("-dt", "--date_to", required=False, help="The date to when to obtain data")
+    ap.add_argument("-u", "--user", required=False, help="The gemweb user to download data from")
+    ap.add_argument("-r", "--reduces", required=False, help="The number of reduces")
+    args = vars(ap.parse_args())
 
-    create_table_hbase = f"""CREATE EXTERNAL TABLE {hdfs_file}(id string, value string)
-                            STORED BY 'org.apache.hadoop.hive.hbase.HBaseStorageHandler'
-                            WITH SERDEPROPERTIES (
-                                'hbase.table.name' = '{hbase_table}',
-                                "hbase.columns.mapping" = ":key,info:cups"
-                            )"""
+    # parameters validation
+    if args['frequency'] not in list(Gemweb_gather.frequencies.keys())+["all"]:
+        raise NotImplemented(f"The frequency {args['frequency']} is not implemented")
+    frequency = args['frequency']
 
-    #save_id_to_file = f"""INSERT OVERWRITE DIRECTORY '/tmp/{hdfs_file}/' SELECT id FROM {hdfs_file}"""
-    save_id_to_file = f"""
-    INSERT OVERWRITE DIRECTORY '/tmp/{hdfs_file}/' select id from supplies_icaen where id in ( 95109, 95112, 95113, 95123, 95124, 95134, 95135, 95145, 95146, 95147, 95150, 95156, 95157, 95158, 95160, 95161, 95167, 95168, 95169, 95170, 95171, 95172, 95178, 95179, 95180, 95181, 95182, 95183, 95185, 95187, 95188, 95189, 95190, 95191, 95192, 95193, 95194, 95195, 95196, 95198, 95199, 95200, 95201, 95202, 95203, 95204, 95206, 95207, 95208, 95209, 95210, 95211, 95212, 95213, 95214, 95215, 95217, 95218, 95219, 95220, 95221, 95222, 95223, 95224, 95225, 95226, 95227, 95228, 95229, 95230, 95231, 95232, 95233, 95234, 95235, 95236, 95237, 95238, 95239, 95240, 95241, 95242, 95243, 95244, 95245, 95246, 95247, 95248, 95249, 95250, 95251, 95252, 95253, 95254, 95255, 95256, 95257, 95258, 95259, 95260, 95261, 95262, 95263, 95264, 95265, 95266, 95267, 95268, 95269, 95270, 95271, 95272, 95273, 95274, 95275, 95276, 95277, 95278, 95279, 95280, 95281, 95282, 95283, 95284, 95285, 95286, 95287, 95288, 95289, 95291, 95293, 95295, 95296, 95297, 95298, 95299, 95300, 95301, 95302, 95303, 95304, 95305, 95306, 95307, 95308, 95309, 95310, 95311, 95312, 95313, 95314, 95315, 95316, 95317, 95318, 95367, 95369, 95370, 95371, 95372, 95373, 95374, 95375, 95376, 95377, 95378, 95379, 95380, 95381, 95382, 95383, 95384, 95385, 95386, 95387, 95388, 95389, 95390, 95391, 95392, 95393, 95394, 95395, 95396, 95397, 95398, 95399, 95400, 95401, 95402, 95403, 95404, 95405, 95439, 95440, 95441, 95442, 95443, 95444, 95445, 95446, 95447, 95448, 95449, 95450, 95452, 95453, 95528, 95529, 95557, 95558, 95567, 95569, 95580, 95613, 95623, 95624, 95705, 95774, 95775, 95776, 95777, 95778, 95779, 95780, 95781, 95782, 95783, 95784, 95785, 95786, 95787, 95788, 95789, 95790, 95791, 95792, 95793, 95794, 95795, 95796, 95797, 95798, 95799, 95800, 95801, 95802, 95803, 95804, 96029, 96385, 96959, 96996, 96997, 96998, 96999, 97000, 97003)
-    """
-    remove_hbase_table = f"""DROP TABLE {hdfs_file}"""
-    cursor = hive.Connection("master1.internal", 10000, database="gemweb").cursor()
-    cursor.execute(create_table_hbase)
-    cursor.execute(save_id_to_file)
-    cursor.execute(remove_hbase_table)
-    cursor.close()
+    if args['limit']:
+        if args['limit'] < 0:
+            raise ValueError("limit: must be positive")
+        limit = args['limit']
+    else:
+        limit = None
 
-    job_config = dict()
-    job_config['connection'] = connection.copy()
-    job_config['config'] = dict()
-    job_config['config']['data_source'] = data_source
-    job_config['config']['mongo_connection'] = config['mongo_db']
-    job_config['config']['hbase_connection'] = config['hbase']
+    if args["device"]:
+        device = args['device']
+    else:
+        device = None
 
-    f = NamedTemporaryFile(delete=False, suffix='.json')
-    f.write(pickle.dumps(job_config))
-    f.close()
+    if args['date_from']:
+        try:
+            datetime.datetime.strptime(args['date_from'], "%Y-%m-%d")
+        except ValueError as e:
+            raise ValueError(f"date_from: {e}")
+        date_from = args['date_from']
+    else:
+        date_from = None
 
-    MOUNTS ='YARN_CONTAINER_RUNTIME_DOCKER_MOUNTS=/hadoop_stack:/hadoop_stack:ro'
-    IMAGE ='YARN_CONTAINER_RUNTIME_DOCKER_IMAGE=beerepo.tech.beegroup-cimne.com:5000/python3-mr'
-    RUNTYPE ='YARN_CONTAINER_RUNTIME_TYPE=docker'
-    mr_job = Gemweb_gather(args=[
-        '-r', 'hadoop', 'hdfs://{}'.format(f"/tmp/{hdfs_file}/"), '--file', f.name,
-        '--file', 'utils.py#utils.py',
-        '--jobconf', 'mapreduce.map.env={},{},{}'.format(MOUNTS, IMAGE, RUNTYPE),
-        '--jobconf', 'mapreduce.reduce.env={},{},{}'.format(MOUNTS, IMAGE, RUNTYPE),
-        '--jobconf', 'mapreduce.job.name=gemweb_import',
-        '--jobconf', 'mapreduce.job.reduces=8',
-    ])
+    if args['date_to']:
+        try:
+            datetime.datetime.strptime(args['date_to'], "%Y-%m-%d")
+        except ValueError as e:
+            raise ValueError(f"date_to: {e}")
+        date_to = args['date_to']
+    else:
+        date_to = datetime.datetime.utcnow().date().strftime("%Y-%m-%d")
 
-    with mr_job.make_runner() as runner:
-        runner.run()
+    if args['user']:
+        user = args['user']
+    else:
+        user = 'all'
+
+    if args['reduces']:
+        if args['reduces'] < 0:
+            raise ValueError("reduces: must be positive")
+        reduces = args['reduces']
+    else:
+        reduces = 8
+
+    # read config file
+    with open("./config.json") as config_f:
+        config = json.load(config_f)
+
+    mongo = connection_mongo(config['mongo_db'])
+    data_source = config['datasources']['gemweb']
+
+    # start data obtention the connections
+    if user != 'all':
+        connections = mongo[data_source['info']].find({"user": user})
+    else:
+        connections = mongo[data_source['info']].find({})
+
+    for connection in connections:
+        # connection = mongo[data_source['info']].find_one({})
+        # create supplies hdfs file to perform mapreduce
+        hbase_table = f"raw_data:gemweb_supplies_{connection['user']}"
+        version = connection['timeseries']['version'] + 1 if 'timeseries' in connection and 'version' in connection['timeseries'] else 0
+        hdfs_file = f"supplies_{connection['user']}"
+        create_table_hbase = f"""CREATE EXTERNAL TABLE {hdfs_file}(id string, value string)
+                                STORED BY 'org.apache.hadoop.hive.hbase.HBaseStorageHandler'
+                                WITH SERDEPROPERTIES (
+                                    'hbase.table.name' = '{hbase_table}',
+                                    "hbase.columns.mapping" = ":key,info:cups"
+                                )"""
+
+        save_id_to_file = f"""INSERT OVERWRITE DIRECTORY '/tmp/{hdfs_file}/' SELECT id FROM {hdfs_file}"""
+        if device:
+            save_id_to_file = f"{save_id_to_file} WHERE id > '{device}'"
+        if limit:
+            save_id_to_file = f"{save_id_to_file} LIMIT {limit}"
+
+        remove_hbase_table = f"""DROP TABLE {hdfs_file}"""
+        cursor = hive.Connection("master1.internal", 10000, database="gemweb").cursor()
+        cursor.execute(create_table_hbase)
+        cursor.execute(save_id_to_file)
+        cursor.execute(remove_hbase_table)
+        cursor.close()
+
+        log = {
+            "user": connection['user'],
+            "frequency": frequency,
+            "launched": datetime.datetime.utcnow(),
+            "devices": {}
+        }
+
+        report_id = mongo[data_source['log']].insert_one(log)
+
+        job_config = dict()
+        job_config['connection'] = connection.copy()
+        job_config['config'] = dict()
+        job_config['config']['data_source'] = data_source
+        job_config['config']['mongo_connection'] = config['mongo_db']
+        job_config['config']['hbase_connection'] = config['hbase']
+        job_config['job']['date_from'] = date_from
+        job_config['job']['date_to'] = date_to
+        job_config['job']['freq'] = frequency
+        job_config['job']['report'] = report_id.inserted_id
+        job_config['job']['version'] = version
+
+        f = NamedTemporaryFile(delete=False, suffix='.json')
+        f.write(pickle.dumps(job_config))
+        f.close()
+
+        MOUNTS = 'YARN_CONTAINER_RUNTIME_DOCKER_MOUNTS=/hadoop_stack:/hadoop_stack:ro'
+        IMAGE = 'YARN_CONTAINER_RUNTIME_DOCKER_IMAGE=beerepo.tech.beegroup-cimne.com:5000/python3-mr'
+        RUNTYPE = 'YARN_CONTAINER_RUNTIME_TYPE=docker'
+        mr_job = Gemweb_gather(args=[
+            '-r', 'hadoop', 'hdfs://{}'.format(f"/tmp/{hdfs_file}/"), '--file', f.name,
+            '--file', 'utils.py#utils.py',
+            '--jobconf', f'mapreduce.map.env={MOUNTS},{IMAGE},{RUNTYPE}',
+            '--jobconf', f'mapreduce.reduce.env={MOUNTS},{IMAGE},{RUNTYPE}',
+            '--jobconf', f'mapreduce.job.name=gemweb_import',
+            '--jobconf', f'mapreduce.job.reduces={reduces}',
+        ])
+
+        with mr_job.make_runner() as runner:
+            runner.run()
+
+        up_conn = {"$set": {'timeseries.version': version}}
+        mongo[data_source['info']].update_one({"_id": connection['_id']}, up_conn)
+
+

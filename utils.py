@@ -1,3 +1,5 @@
+import uuid
+
 from pymongo import MongoClient
 import happybase
 import time
@@ -44,12 +46,13 @@ def get_HTable(hbase, table_name, cf=None):
     return hbase.table(table_name)
 
 
-def save_to_hbase(HTable, documents, cf_mapping, row_fields=None, version=int(time.time())):
-    htbatch = HTable.batch(timestamp=version, batch_size=1000)
+def save_to_hbase(HTable, documents, cf_mapping, row_fields=None, version=int(time.time()), batch_size=1000):
+    htbatch = HTable.batch(timestamp=version, batch_size=batch_size)
     row_auto = 0
+    uid = uuid.uuid4()
     for d in documents:
         if not row_fields:
-            row = row_auto
+            row = f"{uid}~{row_auto}"
             row_auto += 1
         else:
             row = "~".join([str(d.pop(f)) if f in d else "" for f in row_fields])

@@ -5,32 +5,44 @@ import json
 from datetime import datetime
 import os
 import sys
-sys.path.append(os.getcwd())
-from utils import *
 
-BATCH = 1000
+from Gemweb.gemweb_gather import update_static_data
+from utils import connection_mongo
 
-
-def update_static_data(data_type, mongo_conf, hbase_conf, connection, data_source, gemweb):
-    version = connection[data_type['name']]['version'] + 1
-    user = connection['user']
-    print("getting_data")
-    data = gemweb.gemweb.gemweb_query(data_type['endpoint'], category=data_type['category'])
-    print("uploading_data")
-    hbase = hbase = connection_hbase(hbase_conf)
-    htable = get_HTable(hbase, "{}_{}_{}".format(data_source["hbase_name"], data_type['name'], user), {"info": {}})
-    save_to_hbase(htable, data, [("info", "all")], row_fields=['id'], version=version)
-
-    connection[data_type['name']]['version'] = version
-    connection[data_type['name']]['inserted'] = len(data)
-    connection[data_type['name']]['date'] = datetime.now()
-    mongo = connection_mongo(mongo_conf)
-    mongo[data_source['info']].replace_one({"_id": connection["_id"]}, connection)
+data_types ={
+    "entities": {
+        "name": "entities",
+        "endpoint": gemweb.ENDPOINTS.GET_INVENTORY,
+        "category": "entitats"
+    },
+    "buildings": {
+        "name": "buildings",
+        "endpoint": gemweb.ENDPOINTS.GET_INVENTORY,
+        "category": "centres_consum"
+    },
+    "solarpv": {
+        "name": "solarpv",
+        "endpoint": gemweb.ENDPOINTS.GET_INVENTORY,
+        "category": "instalacions_solars"
+    },
+    "supplies": {
+        "name": "supplies",
+        "endpoint": gemweb.ENDPOINTS.GET_INVENTORY,
+        "category": "subministraments"
+    },
+    "invoices": {
+        "name": "invoices",
+        "endpoint": gemweb.ENDPOINTS.GET_INVENTORY,
+        "category": "factures"
+    }
+}
 
 
 if __name__ == '__main__':
     ap = argparse.ArgumentParser()
-    ap.add_argument("-d", "--data_type", required=True, help="type of data to import: one of {}".format(list(data_types.keys())))
+    ap.add_argument("-d", "--data_type", required=True,
+                    help=f"type of data to import: one of {list(data_types.keys())}")
+    ap.add_argument("-u", "--data_type", required=True, help="User importing the data")
     args = vars(ap.parse_args())
     with open("./config.json") as config_f:
         config = json.load(config_f)
@@ -55,6 +67,3 @@ if __name__ == '__main__':
                     update_static_data(data_types[args['data_type']], config['mongo_db'], config['hbase'], connection, data_source, gemweb)
                 except Exception as e:
                     print(e)
-
-
-

@@ -87,10 +87,10 @@ class Ixon:
 
         return res.json()['data']
 
-    def get_agent_ips(self, publicId):
+    def get_agent_network_data(self, publicId):
         try:
             res = requests.get(
-                self.api_url + '/agents/{}?fields=activeVpnSession.vpnAddress,config.routerLan.*,devices.*,devices.dataProtocol.*,deviceId'.format(
+                self.api_url + '/agents/{}?fields=activeVpnSession.vpnAddress,config.routerLan.*,devices.*,devices.dataProtocol.*,deviceId,description'.format(
                     publicId),
                 headers={
                     'IXapi-Version': self.api_version,
@@ -105,6 +105,7 @@ class Ixon:
             if data is not None and data['devices']:
                 ips = {}
                 ips['my_vpn_ip'] = '10.187.10.1/16'
+                ips['description'] = data['description']
 
                 if data['activeVpnSession']:
                     ips['ip_vpn'] = data['activeVpnSession']['vpnAddress']
@@ -223,6 +224,11 @@ class Ixon:
     def network_mask_to_bits(self, network_mask):
         return sum(bin(int(x)).count('1') for x in network_mask.split('.'))
 
+    def get_credentials(self):
+        return {'token': self.token_authorization, 'api_application': self.api_application,
+                'api_version': self.api_version, 'url': self.api_url,
+                'company': self.companies[0]['publicId']}
+
 
 if __name__ == '__main__':
     with open('config.json') as config_file:
@@ -236,6 +242,6 @@ if __name__ == '__main__':
     i.get_agents()
 
     for x in i.agents:
-        aux = i.get_agent_ips(x['publicId'])
+        aux = i.get_agent_network_data(x['publicId'])
         if aux is not None:
-            print('%s: %s' % (x['name'], aux))
+            print('%s [%s]: %s' % (x['name'], x['publicId'], aux))

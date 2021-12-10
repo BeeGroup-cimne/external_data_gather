@@ -18,17 +18,18 @@ if __name__ == '__main__':
         try:
             datadis.connection(user['username'], user['password'], timezone="UTC")
             supplies = datadis.datadis_query(ENDPOINTS.GET_SUPPLIES)
+            contracts = datadis.datadis_query(ENDPOINTS.GET_CONTRACT, )
             hbase_connection = connection_hbase(config['hbase'])
-
             hTable = get_HTable(hbase_connection,
                                 "{}_{}_{}".format(config['datasources']['datadis']['hbase_name'], 'supplies',
                                                   user['organisation']),
                                 {"info": {}})
-
+            # TODO: contracts
             save_to_hbase(hTable, supplies,
                           [("info",
                             "all")],
                           row_fields=['cups'])
+
 
         except Exception as ex:
             print(str(ex))

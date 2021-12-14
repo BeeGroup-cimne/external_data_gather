@@ -1,117 +1,79 @@
 import json
-import os
+import pickle
+from tempfile import NamedTemporaryFile
+
+from pyhive import hive
+
+from datadis_gather_mr import DatadisMRJob
 import argparse
-import datetime
-import sys
-sys.path.append(os.getcwd())
-from utils import *
 
 
-data_type_source = {"contracts": "contracts_datadis",
-                    "supplies": "supplies_datadis",
-                    "max_power": "max_power_datadis",
-                    "hourly_consumption": "hourly_consumption_datadis",
-                    "quarter_hourly_consumption": "quarter_hourly_consumption_datadis"}
-
-
-def get_config():
-    f = open("Datadis/config.json", "r")
+def get_config(path):
+    f = open(path, "r")
     return json.load(f)
 
 
-def connection_mongo():
-    config = get_config()
-    cli = MongoClient("mongodb://{user}:{pwd}@{host}:{port}/{db}".format(
-        **config['mongo_db']))
-    db = cli[config['mongo_db']['db']]
-    return db
+if __name__ == '__main__':
+    # Arguments
 
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-d", "--data_type", default="hour", type=str)
+    args = vars(parser.parse_args())
 
-def get_cups_list():
-    conn = connection_mongo()
-    res = conn["supplies_datadis"].find({}, no_cursor_timeout=True)
-    return [i["cups"] for i in res]
+    # Read Config
+    config = get_config('config.json')
 
+    # New Config
+    job_config = config.copy()
 
-def get_data(data_type, cups = None):
-    conn = connection_mongo()
-    if not cups: 
-        res = conn[data_type_source[data_type]].find({},
-                                                     no_cursor_timeout=True)
-    else:        
-        res = conn[data_type_source[data_type]].find({"cups": cups},
-                                                     no_cursor_timeout=True)        
-    data = []
-    for i in res:
-        item = {}
-        for k in i.keys():
-            if k !="_id":                
-                item[k] = i[k]
+    for i in args:
+        job_config.update({i: args[i]})
 
-        data.append(item)
+    f = NamedTemporaryFile(delete=False, suffix='.pickle')
+    f.write(pickle.dumps(job_config))
+    f.close()
 
-    if data_type == "max_power":
-        for i in data:
-            i["date"] = int(datetime.datetime.strptime(i["date"],"%Y/%m/%d").timestamp())
-    elif data_type in ["hourly_consumption","quarter_hourly_consumption"]:
-        for i in data:
-            i["datetime"] = int(i["datetime"].timestamp())
-    return data
-    
+    # Set Table and File name
+    hbase_table = "raw_data:datadis_supplies_icaen"
+    hdfs_file = "datadis_supplies_icaen"
 
-def load_datadis_hbase_by_cups(data_type):   
-    config = get_config()
-    cups_list = get_cups_list()
-    for cups in cups_list:        
-        documents = get_data(data_type,cups)
-        print(cups)
-        try:
-            hbase = connection_hbase(config["hbase"])
-            HTable = 'datadis_' + data_type
-            htable = get_HTable(hbase, HTable, {"info": {}})
-            save_to_hbase(htable,
-                          documents,
-                          [("info", "all")],
-                          row_fields=["cups", "datetime"])
+    # Query to create table
+    create_table_hbase = f"""CREATE EXTERNAL TABLE {hdfs_file} (id string, address string, postalCode string, province string, municipality string, distributor string, validDateFrom string, validDateTo string, pointType string, distributorCode string)
+                            STORED BY 'org.apache.hadoop.hive.hbase.HBaseStorageHandler'
+                            WITH SERDEPROPERTIES (
+                                'hbase.table.name' = '{hbase_table}', "hbase.columns.mapping" = ":key,info:address,info:postalCode,info:province,info:municipality,info:distributor,info:validDateFrom,info:validDateTo,info:pointType,info:distributorCode")"""
 
-            print('loaded')
-        except Exception as e:
-            print('ERROR load to hbase:%s' % e)
-            
+    # Query to insert data to the table
+    save_id_to_file = f"""INSERT OVERWRITE DIRECTORY '/tmp/{hdfs_file}/' ROW FORMAT DELIMITED FIELDS TERMINATED BY '\t' SELECT * FROM {hdfs_file}"""
 
-def load_datadis_hbase(data_type):
-    documents = get_data(data_type)
-    config = get_config()
-    hbase = connection_hbase(config["hbase"])
-    HTable = 'datadis_' + data_type
-    htable = get_HTable(hbase, HTable, {"info": {}})    
+    # Query to remove temporal table
+    remove_hbase_table = f"""DROP TABLE {hdfs_file}"""
 
-    if data_type in ["contracts", "supplies"]:
-        save_to_hbase(htable,
-                      documents,
-                      [("info", "all")],
-                      row_fields=["u_id", "cups"])
-    else:
-        #max_power
-        save_to_hbase(htable,
-                      documents,
-                      [("info", "all")],
-                      row_fields=["cups", "date"])
+    # Init Hive connection
+    cursor = hive.Connection("master1.internal", 10000, database='bigg').cursor()
 
+    # Execute queries
+    cursor.execute(create_table_hbase)
+    cursor.execute(save_id_to_file)
+    cursor.execute(remove_hbase_table)
+    cursor.close()
 
-if __name__ == "__main__":
-    ap = argparse.ArgumentParser()
-    ap.add_argument("-d",
-                    "--data_type",
-                    required=True,
-                    help="type of data to import: one of {}".format(data_type_source.keys()))
-    args = vars(ap.parse_args())
-    if args['data_type'] in data_type_source.keys():
-        if args['data_type'] in ["hourly_consumption", 
-                                 "quarter_hourly_consumption"]:
-            load_datadis_hbase_by_cups(args['data_type'])       
-        else:
-            load_datadis_hbase(args['data_type'])
-    else:
-        print("Incorrect type")        
-           
+    # Map Reduce
+
+    MOUNTS = 'YARN_CONTAINER_RUNTIME_DOCKER_MOUNTS=/hadoop_stack:/hadoop_stack:ro'
+    IMAGE = 'YARN_CONTAINER_RUNTIME_DOCKER_IMAGE=docker.tech.beegroup-cimne.com/mr/mr-datadis'
+    RUNTYPE = 'YARN_CONTAINER_RUNTIME_TYPE=docker'
+
+    datadis_job = DatadisMRJob(args=[
+        '-r', 'hadoop', 'hdfs://{}'.format(f"/tmp/{hdfs_file}/"),
+        '--file', f.name,
+        '--file', 'utils.py#utils.py',
+        '--jobconf', f'mapreduce.map.env={MOUNTS},{IMAGE},{RUNTYPE}',
+        '--jobconf', f'mapreduce.reduce.env={MOUNTS},{IMAGE},{RUNTYPE}',
+        '--jobconf', f'mapreduce.job.name=datadis_import',
+        '--jobconf', f'mapreduce.job.reduces=1',
+        '--output-dir', 'datadis_output'
+    ])
+
+    with datadis_job.make_runner() as runner:
+        runner.run()

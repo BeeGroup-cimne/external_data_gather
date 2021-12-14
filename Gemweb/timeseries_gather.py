@@ -6,6 +6,7 @@ import pickle
 import json
 import os
 import sys
+
 sys.path.append(os.getcwd())
 from utils import *
 from Gemweb.gemweb_gather_mr import Gemweb_gather
@@ -14,7 +15,7 @@ import datetime
 if __name__ == '__main__':
     ap = argparse.ArgumentParser()
     ap.add_argument("-freq", "--frequency", required=True, help="frequency of data to import: one of {}".format(
-        list(Gemweb_gather.frequencies.keys())+["all"]))
+        list(Gemweb_gather.frequencies.keys()) + ["all"]))
     ap.add_argument("-l", "--limit", required=False, help="The limit of packages to run at one execution")
     ap.add_argument("-d", "--device", required=False, help="The device to start obtaining data")
     ap.add_argument("-df", "--date_from", required=False, help="The date from when to obtain data")
@@ -24,7 +25,7 @@ if __name__ == '__main__':
     args = vars(ap.parse_args())
 
     # parameters validation
-    if args['frequency'] not in list(Gemweb_gather.frequencies.keys())+["all"]:
+    if args['frequency'] not in list(Gemweb_gather.frequencies.keys()) + ["all"]:
         raise NotImplemented(f"The frequency {args['frequency']} is not implemented")
     frequency = args['frequency']
 
@@ -87,7 +88,8 @@ if __name__ == '__main__':
         # connection = mongo[data_source['info']].find_one({})
         # create supplies hdfs file to perform mapreduce
         hbase_table = f"raw_data:gemweb_supplies_{connection['user']}"
-        version = connection['timeseries']['version'] + 1 if 'timeseries' in connection and 'version' in connection['timeseries'] else 0
+        version = connection['timeseries']['version'] + 1 if 'timeseries' in connection and 'version' in connection[
+            'timeseries'] else 0
         hdfs_file = f"supplies_{connection['user']}"
         create_table_hbase = f"""CREATE EXTERNAL TABLE {hdfs_file}(id string, value string)
                                 STORED BY 'org.apache.hadoop.hive.hbase.HBaseStorageHandler'
@@ -103,7 +105,7 @@ if __name__ == '__main__':
             save_id_to_file = f"{save_id_to_file} LIMIT {limit}"
 
         remove_hbase_table = f"""DROP TABLE {hdfs_file}"""
-        cursor = hive.Connection("master1.internal", 10000, database="gemweb").cursor()
+        cursor = hive.Connection("master1.internal", 10000, database="bigg").cursor()
         cursor.execute(create_table_hbase)
         cursor.execute(save_id_to_file)
         cursor.execute(remove_hbase_table)
@@ -151,5 +153,3 @@ if __name__ == '__main__':
 
         up_conn = {"$set": {'timeseries.version': version}}
         mongo[data_source['info']].update_one({"_id": connection['_id']}, up_conn)
-
-

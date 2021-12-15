@@ -1,63 +1,27 @@
+import argparse
+import ast
 import json
+import os
 import pickle
+import subprocess
+import sys
 from tempfile import NamedTemporaryFile
 
-from pyhive import hive
+from neo4j import GraphDatabase
 
 from datadis_gather_mr import DatadisMRJob
-import argparse
+from utils import decrypt
+
+
+# sys.path.append(os.getcwd())
 
 
 def get_config(path):
-    f = open(path, "r")
-    return json.load(f)
+    file = open(path, "r")
+    return json.load(file)
 
 
-if __name__ == '__main__':
-    # Arguments
-
-    parser = argparse.ArgumentParser()
-    parser.add_argument("-d", "--data_type", default="hour", type=str)
-    args = vars(parser.parse_args())
-
-    # Read Config
-    config = get_config('config.json')
-
-    # New Config
-    job_config = config.copy()
-
-    for i in args:
-        job_config.update({i: args[i]})
-
-    f = NamedTemporaryFile(delete=False, suffix='.pickle')
-    f.write(pickle.dumps(job_config))
-    f.close()
-
-    # Set Table and File name
-    hbase_table = "raw_data:datadis_supplies_icaen"
-    hdfs_file = "datadis_supplies_icaen"
-
-    # Query to create table
-    create_table_hbase = f"""CREATE EXTERNAL TABLE {hdfs_file} (id string, address string, postalCode string, province string, municipality string, distributor string, validDateFrom string, validDateTo string, pointType string, distributorCode string)
-                            STORED BY 'org.apache.hadoop.hive.hbase.HBaseStorageHandler'
-                            WITH SERDEPROPERTIES (
-                                'hbase.table.name' = '{hbase_table}', "hbase.columns.mapping" = ":key,info:address,info:postalCode,info:province,info:municipality,info:distributor,info:validDateFrom,info:validDateTo,info:pointType,info:distributorCode")"""
-
-    # Query to insert data to the table
-    save_id_to_file = f"""INSERT OVERWRITE DIRECTORY '/tmp/{hdfs_file}/' ROW FORMAT DELIMITED FIELDS TERMINATED BY '\t' SELECT * FROM {hdfs_file}"""
-
-    # Query to remove temporal table
-    remove_hbase_table = f"""DROP TABLE {hdfs_file}"""
-
-    # Init Hive connection
-    cursor = hive.Connection("master1.internal", 10000, database='bigg').cursor()
-
-    # Execute queries
-    cursor.execute(create_table_hbase)
-    cursor.execute(save_id_to_file)
-    cursor.execute(remove_hbase_table)
-    cursor.close()
-
+def setup_mapreduce(hdfs_file):
     # Map Reduce
 
     MOUNTS = 'YARN_CONTAINER_RUNTIME_DOCKER_MOUNTS=/hadoop_stack:/hadoop_stack:ro'
@@ -72,8 +36,71 @@ if __name__ == '__main__':
         '--jobconf', f'mapreduce.reduce.env={MOUNTS},{IMAGE},{RUNTYPE}',
         '--jobconf', f'mapreduce.job.name=datadis_import',
         '--jobconf', f'mapreduce.job.reduces=1',
-        '--output-dir', 'datadis_output'
+        # '--output-dir', 'datadis_output'
     ])
 
     with datadis_job.make_runner() as runner:
         runner.run()
+
+
+def get_users(config):
+    driver = GraphDatabase.driver(config['neo4j']['uri'], auth=(config['neo4j']['user'], config['neo4j']['password']))
+    with driver.session() as session:
+        users = session.run(
+            f"""
+                Match (n:DatadisSource)<-[:ns0__hasSource]->(o:ns0__Organization)
+                CALL{{
+                    With o
+                    Match (o)<-[*]-(d:ns0__Organization)
+                    WHERE NOT (d)<-[:ns0__hasSubOrganization]-() return d}}
+                    return n.username, n.password, d.user_id
+            """).data()
+
+    return users
+
+
+def generate_tsv(config, data):
+    with NamedTemporaryFile(delete=False, suffix=".tsv", mode='w') as file:
+        for i in data:
+            password = config['key_decoder']
+            enc_dict = ast.literal_eval(i['n.password'])
+            password_decoded = decrypt(enc_dict, password).decode('utf-8')
+            tsv_str = f"{i['n.username']}\t{password_decoded}\t{i['d.user_id']}\n"
+            file.write(tsv_str)
+    return file.name
+
+
+def put_file_to_hdfs(source_file_path, destination_file_path):
+    output = subprocess.call(f"hdfs dfs -put -f {source_file_path} {destination_file_path}", shell=True)
+    os.remove(source_file_path)
+    return destination_file_path + source_file_path.split('/')[-1]
+
+
+if __name__ == '__main__':
+
+    # Arguments
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-d", "--data_type", required=True, type=str)
+
+    if os.getenv("PYCHARM_HOSTED"):
+        args = vars(parser.parse_args(['-d', "hour"]))
+    else:
+        args = vars(parser.parse_args())
+
+    # Read Config
+    config = get_config('config.json')
+
+    # New Config
+    job_config = config.copy()
+    job_config.update(args)
+
+    f = NamedTemporaryFile(delete=False, prefix='config_job_', suffix='.pickle')
+    f.write(pickle.dumps(job_config))
+    f.close()
+
+    # Get Users
+    users = get_users(config)
+
+    # Create and Save TSV File
+    file_path = generate_tsv(config, users)
+    put_file_to_hdfs(source_file_path=file_path, destination_file_path='/tmp/datadis_tmp/')

@@ -1,5 +1,8 @@
+import base64
+import hashlib
 import uuid
 
+from Crypto.Cipher import AES
 from pymongo import MongoClient
 import happybase
 import time
@@ -67,3 +70,33 @@ def save_to_hbase(HTable, documents, cf_mapping, row_fields=None, version=int(ti
                         values["{cf}:{c}".format(cf=cf, c=c)] = str(d[c])
             htbatch.put(str(row), values)
     htbatch.send()
+
+
+def un_pad(s):
+    """
+    remove the extra spaces at the end
+    :param s:
+    :return:
+    """
+    return s.rstrip()
+
+
+def decrypt(enc_dict, password):
+    # decode the dictionary entries from base64
+    salt = base64.b64decode(enc_dict['salt'])
+    enc = base64.b64decode(enc_dict['cipher_text'])
+    iv = base64.b64decode(enc_dict['iv'])
+
+    # generate the private key from the password and salt
+    private_key = hashlib.scrypt(password.encode(), salt=salt, n=2 ** 14, r=8, p=1, dklen=32)
+
+    # create the cipher config
+    cipher = AES.new(private_key, AES.MODE_CBC, iv)
+
+    # decrypt the cipher text
+    decrypted = cipher.decrypt(enc)
+
+    # unpad the text to remove the added spaces
+    original = un_pad(decrypted)
+
+    return original

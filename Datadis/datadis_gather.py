@@ -21,28 +21,6 @@ def get_config(path):
     return json.load(file)
 
 
-def setup_mapreduce(hdfs_file):
-    # Map Reduce
-
-    MOUNTS = 'YARN_CONTAINER_RUNTIME_DOCKER_MOUNTS=/hadoop_stack:/hadoop_stack:ro'
-    IMAGE = 'YARN_CONTAINER_RUNTIME_DOCKER_IMAGE=docker.tech.beegroup-cimne.com/mr/mr-datadis'
-    RUNTYPE = 'YARN_CONTAINER_RUNTIME_TYPE=docker'
-
-    datadis_job = DatadisMRJob(args=[
-        '-r', 'hadoop', 'hdfs://{}'.format(f"/tmp/{hdfs_file}/"),
-        '--file', f.name,
-        '--file', 'utils.py#utils.py',
-        '--jobconf', f'mapreduce.map.env={MOUNTS},{IMAGE},{RUNTYPE}',
-        '--jobconf', f'mapreduce.reduce.env={MOUNTS},{IMAGE},{RUNTYPE}',
-        '--jobconf', f'mapreduce.job.name=datadis_import',
-        '--jobconf', f'mapreduce.job.reduces=1',
-        # '--output-dir', 'datadis_output'
-    ])
-
-    with datadis_job.make_runner() as runner:
-        runner.run()
-
-
 def get_users(config):
     driver = GraphDatabase.driver(config['neo4j']['uri'], auth=(config['neo4j']['user'], config['neo4j']['password']))
     with driver.session() as session:
@@ -72,8 +50,15 @@ def generate_tsv(config, data):
 
 def put_file_to_hdfs(source_file_path, destination_file_path):
     output = subprocess.call(f"hdfs dfs -put -f {source_file_path} {destination_file_path}", shell=True)
-    os.remove(source_file_path)
     return destination_file_path + source_file_path.split('/')[-1]
+
+
+def remove_file_from_hdfs(file_path):
+    output = subprocess.call(f"hdfs dfs -rm {file_path}", shell=True)
+
+
+def remove_file(file_path):
+    os.remove(file_path)
 
 
 if __name__ == '__main__':
@@ -102,5 +87,29 @@ if __name__ == '__main__':
     users = get_users(config)
 
     # Create and Save TSV File
-    file_path = generate_tsv(config, users)
-    put_file_to_hdfs(source_file_path=file_path, destination_file_path='/tmp/datadis_tmp/')
+    tsv_file_path = generate_tsv(config, users[:2])
+
+    input_mr_file_path = put_file_to_hdfs(source_file_path=tsv_file_path, destination_file_path='/tmp/datadis_tmp/')
+    remove_file(tsv_file_path)
+
+    # Map Reduce
+
+    MOUNTS = 'YARN_CONTAINER_RUNTIME_DOCKER_MOUNTS=/hadoop_stack:/hadoop_stack:ro'
+    IMAGE = 'YARN_CONTAINER_RUNTIME_DOCKER_IMAGE=docker.tech.beegroup-cimne.com/mr/mr-datadis'
+    RUNTYPE = 'YARN_CONTAINER_RUNTIME_TYPE=docker'
+
+    datadis_job = DatadisMRJob(args=[
+        '-r', 'hadoop', 'hdfs://{}'.format(input_mr_file_path),
+        '--file', f.name,
+        '--file', 'utils.py#utils.py',
+        '--jobconf', f'mapreduce.map.env={MOUNTS},{IMAGE},{RUNTYPE}',
+        '--jobconf', f'mapreduce.reduce.env={MOUNTS},{IMAGE},{RUNTYPE}',
+        '--jobconf', f'mapreduce.job.name=datadis_import',
+        '--jobconf', f'mapreduce.job.reduces=1'
+    ])
+
+    with datadis_job.make_runner() as runner:
+        runner.run()
+
+    remove_file_from_hdfs(input_mr_file_path)
+    remove_file(f.name)

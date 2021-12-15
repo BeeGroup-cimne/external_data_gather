@@ -18,36 +18,38 @@ class DatadisMRJob(MRJob):
         # CUPS address postalCode province municipality distributor validDateFrom validDateTo pointType distributorCode
         l = line.split('\t')
 
-        db = connection_mongo(self.mongo_db)
-        datadis_devices = db['datadis_devices']
+        sys.stderr.write(str(l))
 
-        device = datadis_devices.find_one({"cups": l[0]})
-
-        if device:
-
-            pass
-        else:
-            datadis.connection(username="", password="")
-
-            # "cups": cups,
-            # "distributorCode": distributor_code,
-            # "startDate": start_date.strftime("%Y/%m/%d"),
-            # "endDate": end_date.strftime("%Y/%m/%d"),
-            # "measurementType": measurement_type,
-            # "pointType": point_type,
-            # "authorizedNif": authorized_nif
-            start_date = datetime.date(2018, 1, 1)
-            for i in range(pd.date_range(start_date, datetime.date.today(), freq='3M')):
-                print(i)
-
-                res = datadis.datadis_query(ENDPOINTS.GET_CONSUMPTION, cups=l[0], distributorCode=l[-1], startDate=i,
-                                            endDate="",
-                                            measurementType=self.data_type, pointType=l[-2])
-
-            device_start_data = {"cups": l[0], "timeToInit": start_date,
-                                 "timeToEnd": datetime.date.today(),
-                                 "hasError": False, "info": None}
-
+        # db = connection_mongo(self.mongo_db)
+        # datadis_devices = db['datadis_devices']
+        #
+        # device = datadis_devices.find_one({"cups": l[0]})
+        #
+        # if device:
+        #
+        #     pass
+        # else:
+        #     datadis.connection(username="", password="")
+        #
+        #     # "cups": cups,
+        #     # "distributorCode": distributor_code,
+        #     # "startDate": start_date.strftime("%Y/%m/%d"),
+        #     # "endDate": end_date.strftime("%Y/%m/%d"),
+        #     # "measurementType": measurement_type,
+        #     # "pointType": point_type,
+        #     # "authorizedNif": authorized_nif
+        #     start_date = datetime.date(2018, 1, 1)
+        #     for i in range(pd.date_range(start_date, datetime.date.today(), freq='3M')):
+        #         print(i)
+        #
+        #         res = datadis.datadis_query(ENDPOINTS.GET_CONSUMPTION, cups=l[0], distributorCode=l[-1], startDate=i,
+        #                                     endDate="",
+        #                                     measurementType=self.data_type, pointType=l[-2])
+        #
+        #     device_start_data = {"cups": l[0], "timeToInit": start_date,
+        #                          "timeToEnd": datetime.date.today(),
+        #                          "hasError": False, "info": None}
+        #
         # driver = GraphDatabase.driver(self.neo4j['uri'], auth=(self.neo4j['user'], self.neo4j['password']))
         # with driver.session() as session:
         #     session.run()

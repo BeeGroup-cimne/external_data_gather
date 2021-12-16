@@ -6,3 +6,4 @@ logs/
 *.ovpn
 *.pyc
 .env
+config.json

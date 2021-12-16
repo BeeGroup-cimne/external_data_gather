@@ -105,7 +105,7 @@ if __name__ == '__main__':
         '--jobconf', f'mapreduce.map.env={MOUNTS},{IMAGE},{RUNTYPE}',
         '--jobconf', f'mapreduce.reduce.env={MOUNTS},{IMAGE},{RUNTYPE}',
         '--jobconf', f'mapreduce.job.name=datadis_import',
-        '--jobconf', f'mapreduce.job.reduces=1'
+        '--jobconf', f'mapreduce.job.reduces=2'
     ])
 
     with datadis_job.make_runner() as runner:

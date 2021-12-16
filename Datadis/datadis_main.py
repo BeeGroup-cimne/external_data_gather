@@ -14,13 +14,16 @@ if __name__ == '__main__':
     # TODO add ParseArguments
     # TODO: Get Users from Neo4J
 
-    config = get_config("config.json")
+    config = get_config("Datadis/config.json")
     users = config["users"]
 
     for user in users:
         try:
             datadis.connection(user['username'], user['password'], timezone="UTC")
             supplies = datadis.datadis_query(ENDPOINTS.GET_SUPPLIES)
+
+            for i in supplies:
+                supplies['nif'] = user['username']
 
             hbase_connection = connection_hbase(config['hbase'])
             hTable = get_HTable(hbase_connection,

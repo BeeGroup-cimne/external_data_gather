@@ -10,19 +10,64 @@ from mrjob.job import MRJob
 from utils import connection_hbase, save_to_hbase, connection_mongo
 from neo4j import GraphDatabase
 from beedis import ENDPOINTS, datadis
+from dateutil.relativedelta import relativedelta
 
 
 class DatadisMRJob(MRJob):
 
     def mapper(self, _, line):
-        # CUPS address postalCode province municipality distributor validDateFrom validDateTo pointType distributorCode
-        l = line.split('\t')
+        l = line.split('\t')  # [user,password,organisation]
+        has_datadis_conn = False
 
-        sys.stderr.write(str(l))
+        try:
+            datadis.connection(username=l[0], password=l[1])
+            has_datadis_conn = True
+        except Exception as ex:
+            sys.stderr.write(f"{ex}\n")
+            sys.stderr.write(f"{l[0]}\n")
 
+        if has_datadis_conn:
+            try:
+                supplies = datadis.datadis_query(ENDPOINTS.GET_SUPPLIES)
+                sys.stderr.write(str(supplies))
+
+                if supplies:
+                    for supply in supplies:
+                        key = supply['cups']
+                        value = supply.copy()
+                        value.update({"user": l[0], "password": l[1], "organisation": l[2]})
+                        sys.stderr.write(f"{key},{value}")
+                        yield key, value
+
+            except Exception as ex:
+                sys.stderr.write(f"{ex}\n")
+
+    def reducer(self, key, values):
+        for value in values:
+            sys.stderr.write(f"{value}\n")
+        # Mongo DB
         # db = connection_mongo(self.mongo_db)
         # datadis_devices = db['datadis_devices']
+        # device = datadis_devices.find_one({"cups": supply['cups']})
         #
+        # if device:
+        #     pass
+        # else:
+        #     init_date = datetime.datetime.strptime(supply['validDateFrom'], '%Y/%m/%d').date()
+        #     end_date = datetime.date.today()
+        #     freq_rec = 3
+        #     for i in pd.date_range(init_date, end_date, freq=f"{freq_rec}M"):
+        #         first_date_of_month = i.replace(day=1)
+        #         final_date = first_date_of_month + relativedelta(months=freq_rec) - datetime.timedelta(
+        #             days=1)
+        #
+        #         consumption = datadis.datadis_query(ENDPOINTS.GET_CONSUMPTION, cups=supply['cups'],
+        #                                             distributor_code=supply['distributorCode'],
+        #                                             start_date=first_date_of_month,
+        #                                             end_date=final_date,
+        #                                             measurement_type="1",
+        #                                             point_type=str(supply['pointType']))
+        # -----------------------------------------------------------------------------------------
         # device = datadis_devices.find_one({"cups": l[0]})
         #
         # if device:
@@ -54,9 +99,6 @@ class DatadisMRJob(MRJob):
         # with driver.session() as session:
         #     session.run()
 
-        yield str(l[0]), str(l[1:])
-
-    def reducer(self, key, values):
         pass
 
     def mapper_init(self):

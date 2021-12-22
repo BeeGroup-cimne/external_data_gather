@@ -19,6 +19,7 @@ class DatadisMRJob(MRJob):
         l = line.split('\t')  # [user,password,organisation]
         has_datadis_conn = False
 
+        # Login User
         try:
             datadis.connection(username=l[0], password=l[1])
             has_datadis_conn = True
@@ -28,7 +29,10 @@ class DatadisMRJob(MRJob):
 
         if has_datadis_conn:
             try:
+                # Obtain supplies from the user logged
                 supplies = datadis.datadis_query(ENDPOINTS.GET_SUPPLIES)
+
+                # Check if the user has supplies
                 if supplies:
                     for supply in supplies[:1]:
                         key = supply['cups']
@@ -44,71 +48,68 @@ class DatadisMRJob(MRJob):
         db = connection_mongo(self.mongo_db)
         datadis_devices = db['datadis_devices']
 
+        # Loop supplies
         for supply in values:
-            device = datadis_devices.find_one({"cups": supply['cups']})
+            has_connection = False
 
-            if device:
-                pass
+            # Login User
+            try:
+                datadis.connection(username=supply['user'], password=supply['password'])
+                has_connection = True
+            except Exception as ex:
+                sys.stderr.write(f"{ex}\n")
+                sys.stderr.write(f"{supply['user']}\n")
 
-            else:
-                init_date = datetime.datetime.strptime(supply['validDateFrom'], '%Y/%m/%d').date()
-                end_date = datetime.date.today()
-                freq_rec = 1
+            if has_connection:
+                device = datadis_devices.find_one({"cups": supply['cups']})
 
-                consumptions = []
-                for i in pd.date_range(init_date, end_date, freq=f"{freq_rec}M"):
-                    first_date_of_month = i.replace(day=1)
-                    final_date = first_date_of_month + relativedelta(months=freq_rec) - datetime.timedelta(
-                        days=1)
-
-                    consumption = datadis.datadis_query(ENDPOINTS.GET_CONSUMPTION, cups=supply['cups'],
-                                                        distributor_code=supply['distributorCode'],
-                                                        start_date=first_date_of_month,
-                                                        end_date=final_date,
-                                                        measurement_type="0",
-                                                        point_type=str(supply['pointType']))
-
-                    sys.stderr.write(f"{consumption}\n")
-                    
-                if consumptions:
+                # The device exist in our database
+                if device:
                     pass
+
                 else:
-                    pass
-        # -----------------------------------------------------------------------------------------
-        # device = datadis_devices.find_one({"cups": l[0]})
-        #
-        # if device:
-        #
-        #     pass
-        # else:
-        #     datadis.connection(username="", password="")
-        #
-        #     # "cups": cups,
-        #     # "distributorCode": distributor_code,
-        #     # "startDate": start_date.strftime("%Y/%m/%d"),
-        #     # "endDate": end_date.strftime("%Y/%m/%d"),
-        #     # "measurementType": measurement_type,
-        #     # "pointType": point_type,
-        #     # "authorizedNif": authorized_nif
-        #     start_date = datetime.date(2018, 1, 1)
-        #     for i in range(pd.date_range(start_date, datetime.date.today(), freq='3M')):
-        #         print(i)
-        #
-        #         res = datadis.datadis_query(ENDPOINTS.GET_CONSUMPTION, cups=l[0], distributorCode=l[-1], startDate=i,
-        #                                     endDate="",
-        #                                     measurementType=self.data_type, pointType=l[-2])
-        #
-        #     device_start_data = {"cups": l[0], "timeToInit": start_date,
-        #                          "timeToEnd": datetime.date.today(),
-        #                          "hasError": False, "info": None}
-        #
-        # driver = GraphDatabase.driver(self.neo4j['uri'], auth=(self.neo4j['user'], self.neo4j['password']))
-        # with driver.session() as session:
-        #     session.run()
+                    init_date = datetime.datetime.strptime(supply['validDateFrom'], '%Y/%m/%d').date()
+                    end_date = datetime.date.today()
+                    freq_rec = 4
 
-        pass
+                    has_data = False
+                    last_date = None
+                    first_date_init = True
+                    first_date = None
+
+                    for i in pd.date_range(init_date, end_date, freq=f"{freq_rec}M"):
+                        first_date_of_month = i.replace(day=1)
+                        final_date = first_date_of_month + relativedelta(months=freq_rec) - datetime.timedelta(
+                            days=1)
+
+                        consumption = datadis.datadis_query(ENDPOINTS.GET_CONSUMPTION, cups=supply['cups'],
+                                                            distributor_code=supply['distributorCode'],
+                                                            start_date=first_date_of_month,
+                                                            end_date=final_date,
+                                                            measurement_type="0",
+                                                            point_type=str(supply['pointType']))
+
+                        # Consumption has data
+                        if consumption:
+                            has_data = True
+                            # First date gathered
+                            if first_date_init:
+                                first_date = consumption[0]['datetime']
+                                first_date_init = False
+
+                            # Last date gathered
+                            last_date = consumption[-1]['datetime']
+
+                        datadis_devices.insert_one({"cups": supply['cups'], "timeToInit": first_date,
+                                                    "timeToEnd": last_date,
+                                                    "hasError": not has_data, "info": None})
 
     def mapper_init(self):
+        fn = glob.glob('*.pickle')
+        config = pickle.load(open(fn[0], 'rb'))
+        self.data_type = config['data_type']
+
+    def reducer_init(self):
         fn = glob.glob('*.pickle')
         config = pickle.load(open(fn[0], 'rb'))
 
@@ -117,9 +118,6 @@ class DatadisMRJob(MRJob):
         self.neo4j = config['neo4j']
         self.mongo_db = config['mongo_db']
         self.data_type = config['data_type']
-
-    def reducer_init(self):
-        pass
 
 
 if __name__ == '__main__':

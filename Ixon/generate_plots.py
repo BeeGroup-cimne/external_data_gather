@@ -64,10 +64,11 @@ def loss_period_signal_plot(data_init, data_end):
 if __name__ == '__main__':
     # Arguments
     parser = argparse.ArgumentParser()
-    parser.add_argument("-t", "--type", required=True, type=str)
-    parser.add_argument("-i", "--init", required=True, type=str)
-    parser.add_argument("-f", "--final", required=True, type=str)
-    parser.add_argument("-b", "--buildings", type=str, default="all")
+    parser.add_argument("-t", "--type", required=True, type=str, help="Available types: day, signal")
+    parser.add_argument("-i", "--init", required=True, type=str, help="Date with the format: yyyy/mm/dd, 2021/05/23")
+    parser.add_argument("-f", "--final", required=True, type=str, help="Date with the format: yyyy/mm/dd, 2021/05/23")
+    parser.add_argument("-b", "--buildings", type=str, default="all",
+                        help="Building Names divided by coma or all buildings")
 
     args = parser.parse_args()
 

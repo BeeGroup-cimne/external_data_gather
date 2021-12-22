@@ -1,11 +1,14 @@
 import base64
 import hashlib
+import json
+import os
+import subprocess
+import time
 import uuid
 
+import happybase
 from Crypto.Cipher import AES
 from pymongo import MongoClient
-import happybase
-import time
 
 
 # MongoDB functions
@@ -100,3 +103,21 @@ def decrypt(enc_dict, password):
     original = un_pad(decrypted)
 
     return original
+
+
+def get_json_config(path):
+    file = open(path, "r")
+    return json.load(file)
+
+
+def put_file_to_hdfs(source_file_path, destination_file_path):
+    output = subprocess.call(f"hdfs dfs -put -f {source_file_path} {destination_file_path}", shell=True)
+    return destination_file_path + source_file_path.split('/')[-1]
+
+
+def remove_file_from_hdfs(file_path):
+    output = subprocess.call(f"hdfs dfs -rm {file_path}", shell=True)
+
+
+def remove_file(file_path):
+    os.remove(file_path)

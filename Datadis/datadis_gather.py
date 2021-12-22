@@ -1,24 +1,16 @@
 import argparse
 import ast
-import json
 import os
 import pickle
-import subprocess
-import sys
 from tempfile import NamedTemporaryFile
 
 from neo4j import GraphDatabase
 
 from datadis_gather_mr import DatadisMRJob
-from utils import decrypt
+from utils import decrypt, put_file_to_hdfs, remove_file, remove_file_from_hdfs, get_json_config
 
 
 # sys.path.append(os.getcwd())
-
-
-def get_config(path):
-    file = open(path, "r")
-    return json.load(file)
 
 
 def get_users(config):
@@ -48,19 +40,6 @@ def generate_tsv(config, data):
     return file.name
 
 
-def put_file_to_hdfs(source_file_path, destination_file_path):
-    output = subprocess.call(f"hdfs dfs -put -f {source_file_path} {destination_file_path}", shell=True)
-    return destination_file_path + source_file_path.split('/')[-1]
-
-
-def remove_file_from_hdfs(file_path):
-    output = subprocess.call(f"hdfs dfs -rm {file_path}", shell=True)
-
-
-def remove_file(file_path):
-    os.remove(file_path)
-
-
 if __name__ == '__main__':
 
     # Arguments
@@ -73,7 +52,7 @@ if __name__ == '__main__':
         args = vars(parser.parse_args())
 
     # Read Config
-    config = get_config('config.json')
+    config = get_json_config('config.json')
 
     # New Config
     job_config = config.copy()

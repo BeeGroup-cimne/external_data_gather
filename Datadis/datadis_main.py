@@ -16,7 +16,7 @@ if __name__ == '__main__':
 
     config = get_config("config.json")
 
-    for user in users:
+    for user in config['users']:
         try:
             datadis.connection(user['username'], user['password'], timezone="UTC")
             supplies = datadis.datadis_query(ENDPOINTS.GET_SUPPLIES)

@@ -6,6 +6,7 @@ import sys
 
 import pandas as pd
 from mrjob.job import MRJob
+from pytz import utc
 
 from utils import connection_hbase, save_to_hbase, connection_mongo
 from neo4j import GraphDatabase
@@ -34,7 +35,7 @@ class DatadisMRJob(MRJob):
 
                 # Check if the user has supplies
                 if supplies:
-                    for supply in supplies[:1]:
+                    for supply in supplies:  # todo: change
                         key = supply['cups']
                         value = supply.copy()
                         value.update({"user": l[0], "password": l[1], "organisation": l[2]})
@@ -61,48 +62,59 @@ class DatadisMRJob(MRJob):
                 sys.stderr.write(f"{supply['user']}\n")
 
             if has_connection:
-                device = datadis_devices.find_one({"cups": supply['cups']})
+                device = datadis_devices.find_one({"_id": supply['cups']})
+
+                freq_rec = 4
+
+                has_data = False
+                last_date = None
+
+                first_date_init = True
+                first_date = None
 
                 # The device exist in our database
                 if device:
-                    pass
-
+                    init_date = device['timeToEnd'].date()
+                    end_date = datetime.date.today()
                 else:
                     init_date = datetime.datetime.strptime(supply['validDateFrom'], '%Y/%m/%d').date()
                     end_date = datetime.date.today()
-                    freq_rec = 4
 
-                    has_data = False
-                    last_date = None
-                    first_date_init = True
-                    first_date = None
+                # Obtain data
+                for i in pd.date_range(init_date, end_date, freq=f"{freq_rec}M"):
+                    first_date_of_month = i.replace(day=1)
+                    final_date = first_date_of_month + relativedelta(months=freq_rec) - datetime.timedelta(
+                        days=1)
 
-                    for i in pd.date_range(init_date, end_date, freq=f"{freq_rec}M"):
-                        first_date_of_month = i.replace(day=1)
-                        final_date = first_date_of_month + relativedelta(months=freq_rec) - datetime.timedelta(
-                            days=1)
+                    consumption = datadis.datadis_query(ENDPOINTS.GET_CONSUMPTION, cups=supply['cups'],
+                                                        distributor_code=supply['distributorCode'],
+                                                        start_date=first_date_of_month,
+                                                        end_date=final_date,
+                                                        measurement_type="0",
+                                                        point_type=str(supply['pointType']))
 
-                        consumption = datadis.datadis_query(ENDPOINTS.GET_CONSUMPTION, cups=supply['cups'],
-                                                            distributor_code=supply['distributorCode'],
-                                                            start_date=first_date_of_month,
-                                                            end_date=final_date,
-                                                            measurement_type="0",
-                                                            point_type=str(supply['pointType']))
-
-                        # Consumption has data
-                        if consumption:
-                            has_data = True
-                            # First date gathered
-                            if first_date_init:
-                                first_date = consumption[0]['datetime']
-                                first_date_init = False
+                    # Consumption has data
+                    if consumption:
+                        has_data = True
+                        # First date gathered
+                        if first_date_init:
+                            first_date = consumption[0]['datetime']
+                            first_date_init = False
 
                             # Last date gathered
-                            last_date = consumption[-1]['datetime']
+                        last_date = consumption[-1]['datetime']
+                        sys.stderr.write(f"{last_date}\n")
 
-                        datadis_devices.insert_one({"cups": supply['cups'], "timeToInit": first_date,
-                                                    "timeToEnd": last_date,
-                                                    "hasError": not has_data, "info": None})
+                # TODO: Save to Hbase
+                if device:
+                    datadis_devices.update_one({"_id": supply['cups']}, {"$set": {
+                        "timeToInit": min(first_date.replace(tzinfo=utc), device['timeToInit'].replace(tzinfo=utc)),
+                        "timeToEnd": max(last_date.replace(tzinfo=utc), device['timeToEnd'].replace(tzinfo=utc)),
+                        "hasError": not has_data, "info": None}})
+                else:
+                    datadis_devices.insert_one({"_id": supply['cups'], "timeToInit": first_date,
+                                                "timeToEnd": last_date,
+                                                "hasError": not has_data, "info": None})
 
     def mapper_init(self):
         fn = glob.glob('*.pickle')

@@ -1,10 +1,14 @@
+beautifulsoup4==4.10.0
+bs4==0.0.1
 certifi==2020.12.5
 chardet==4.0.0
+datadis @ git+https://github.com/BeeGroup-cimne/beedis@ebccbfaa01260640cc32cf94d3909856525466e5
 et-xmlfile==1.1.0
 future==0.18.2
-gemweb @ git+https://github.com/BeeGroup-cimne/beegweb@3.0
+gemweb @ git+https://github.com/BeeGroup-cimne/beegweb@c7d880137b310da70dfbc4a767972ef8a8625c15
 happybase==1.2.0
 idna==2.10
+kafka-python==2.0.2
 mrjob==0.7.4
 numpy==1.21.0
 openpyxl==3.0.7
@@ -20,10 +24,10 @@ PyYAML==5.4.1
 requests==2.25.1
 sasl==0.3.1
 six==1.15.0
+soupsieve==2.3.1
 thrift==0.13.0
 thrift-sasl==0.4.3
 thriftpy2==0.4.14
 urllib3==1.26.4
 xlrd==2.0.1
 xmltodict==0.12.0
-sodapy==2.1.0

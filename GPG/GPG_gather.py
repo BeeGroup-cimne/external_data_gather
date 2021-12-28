@@ -2,6 +2,9 @@ import pandas as pd
 
 
 # data clean functions
+from neo4j import GraphDatabase
+
+
 def get_municipi(data):
     return data.split("(")[0].strip()
 
@@ -37,7 +40,7 @@ def read_data_from_xlsx(file):
 
     df_join = pd.DataFrame()
     for g, d in df_duplicates.groupby(df_duplicates.index):
-        df_join = df_join.append(pd.DataFrame.from_records([{'Tipus_us': d['Tipus_us'].unique()}], index=[g]))
+        df_join = df_join.append(pd.DataFrame.from_records([{'Tipus_us': d['Tipus_us'].unique().tolist()}], index=[g]))
 
     df["Tipus_us"].update(df_join['Tipus_us'])
 
@@ -48,3 +51,5 @@ def read_data_from_xlsx(file):
     df["Ref_Cadastral"] = df["Ref_Cadastral"].apply(remove_semicolon)
     df.reset_index(inplace=True)
     return df.to_dict("records")
+
+

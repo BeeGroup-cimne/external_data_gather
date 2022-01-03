@@ -5,6 +5,7 @@ import pickle
 import sys
 
 import pandas as pd
+import pytz
 from mrjob.job import MRJob
 from pytz import utc
 
@@ -35,7 +36,7 @@ class DatadisMRJob(MRJob):
 
                 # Check if the user has supplies
                 if supplies:
-                    for supply in supplies[:4]:  # todo: change
+                    for supply in supplies:
                         key = supply['cups']
                         value = supply.copy()
                         value.update({"user": l[0], "password": l[1], "organisation": l[2]})
@@ -79,42 +80,47 @@ class DatadisMRJob(MRJob):
                     init_date = datetime.datetime.strptime(supply['validDateFrom'], '%Y/%m/%d').date()
 
                 # Obtain data
-                for i in pd.date_range(init_date, end_date, freq=f"{freq_rec}M"):
+                for i in pd.date_range(init_date, end_date, freq=f"{freq_rec}M", tz='Europe/Madrid'):
+
                     first_date_of_month = i.replace(day=1)
                     final_date = first_date_of_month + relativedelta(months=freq_rec) - datetime.timedelta(
                         days=1)
 
-                    consumption = datadis.datadis_query(ENDPOINTS.GET_CONSUMPTION, cups=supply['cups'],
-                                                        distributor_code=supply['distributorCode'],
-                                                        start_date=first_date_of_month,
-                                                        end_date=final_date,
-                                                        measurement_type="0",
-                                                        point_type=str(supply['pointType']))
+                    try:
+                        consumption = datadis.datadis_query(ENDPOINTS.GET_CONSUMPTION, cups=supply['cups'],
+                                                            distributor_code=supply['distributorCode'],
+                                                            start_date=first_date_of_month.date(),
+                                                            end_date=final_date.date(),
+                                                            measurement_type="0",
+                                                            point_type=str(supply['pointType']))
 
-                    # Consumption has data
-                    if consumption:
-                        has_data = True
-                        # First date gathered
-                        if first_date_init:
-                            first_date = consumption[0]['datetime']
-                            first_date_init = False
+                        # Consumption has data
+                        if consumption:
+                            has_data = True
+                            # First date gathered
+                            if first_date_init:
+                                first_date = consumption[0]['datetime']
+                                first_date_init = False
 
-                            # Last date gathered
-                        last_date = consumption[-1]['datetime']
+                                # Last date gathered
+                            last_date = consumption[-1]['datetime']
 
-                # TODO: Save to Hbase
+                    except Exception as ex:
+                        sys.stderr.write(f"{ex}")
 
                 if device:
                     if has_data:
+                        # TODO: Save to Hbase
+
                         datadis_devices.update_one({"_id": supply['cups']}, {"$set": {
                             "timeToInit": min(first_date.replace(tzinfo=utc), device['timeToInit'].replace(tzinfo=utc)),
                             "timeToEnd": max(last_date.replace(tzinfo=utc), device['timeToEnd'].replace(tzinfo=utc)),
                             "hasError": not has_data, "info": None}})
+
                     else:
                         datadis_devices.update_one({"_id": supply['cups']}, {"$set": {
                             "hasError": not has_data,
-                            "info": f"{end_date.__str__()}: The system didn't find new data."}})
-
+                            "info": f"{datetime.datetime.now().__str__()}: The system didn't find new data."}})
                 else:
                     datadis_devices.insert_one({"_id": supply['cups'], "timeToInit": first_date,
                                                 "timeToEnd": last_date,

@@ -34,8 +34,8 @@ class DatadisMRJob(MRJob):
                 supplies = datadis.datadis_query(ENDPOINTS.GET_SUPPLIES)
 
                 # Check if the user has supplies
-                if supplies[:2]:
-                    for supply in supplies:  # todo: change
+                if supplies:
+                    for supply in supplies[:4]:  # todo: change
                         key = supply['cups']
                         value = supply.copy()
                         value.update({"user": l[0], "password": l[1], "organisation": l[2]})
@@ -68,18 +68,15 @@ class DatadisMRJob(MRJob):
 
                 has_data = False
                 first_date_init = True
+                end_date = datetime.date.today()
+                first_date = None
+                last_date = None
 
-                # The device exist in our database
-                if device:
-                    init_date = device['timeToEnd'].date()
-                    end_date = datetime.date.today()
-                    first_date = device['timeToInit']
-                    last_date = device['timeToEnd']
+                # The device exist in our database and is not None
+                if device and device['timeToEnd']:
+                    init_date = device['timeToEnd']
                 else:
                     init_date = datetime.datetime.strptime(supply['validDateFrom'], '%Y/%m/%d').date()
-                    end_date = datetime.date.today()
-                    first_date = None
-                    last_date = None
 
                 # Obtain data
                 for i in pd.date_range(init_date, end_date, freq=f"{freq_rec}M"):
@@ -104,17 +101,20 @@ class DatadisMRJob(MRJob):
 
                             # Last date gathered
                         last_date = consumption[-1]['datetime']
-                        sys.stderr.write(f"{last_date}\n")
 
                 # TODO: Save to Hbase
+
                 if device:
-                    sys.stderr.write(f"{first_date} {device['timeToInit']}")
-                    datadis_devices.update_one({"_id": supply['cups']}, {"$set": {
-                        "timeToInit": min(first_date.replace(tzinfo=utc), device['timeToInit'].replace(tzinfo=utc)),
-                        # TODO: CHANGE
-                        "timeToEnd": max(last_date.replace(tzinfo=utc), device['timeToEnd'].replace(tzinfo=utc)),
-                        # TODO: CHANGE
-                        "hasError": not has_data, "info": None}})
+                    if has_data:
+                        datadis_devices.update_one({"_id": supply['cups']}, {"$set": {
+                            "timeToInit": min(first_date.replace(tzinfo=utc), device['timeToInit'].replace(tzinfo=utc)),
+                            "timeToEnd": max(last_date.replace(tzinfo=utc), device['timeToEnd'].replace(tzinfo=utc)),
+                            "hasError": not has_data, "info": None}})
+                    else:
+                        datadis_devices.update_one({"_id": supply['cups']}, {"$set": {
+                            "hasError": not has_data,
+                            "info": f"{end_date.__str__()}: The system didn't find new data."}})
+
                 else:
                     datadis_devices.insert_one({"_id": supply['cups'], "timeToInit": first_date,
                                                 "timeToEnd": last_date,

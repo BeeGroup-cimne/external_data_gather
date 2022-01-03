@@ -47,7 +47,7 @@ if __name__ == '__main__':
     parser.add_argument("-d", "--data_type", required=True, type=str)
 
     if os.getenv("PYCHARM_HOSTED"):
-        args = vars(parser.parse_args(['-d', "hour"]))
+        args = vars(parser.parse_args(['-d', "hourly_consumption"]))
     else:
         args = vars(parser.parse_args())
 

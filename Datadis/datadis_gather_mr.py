@@ -5,29 +5,36 @@ import pickle
 import sys
 
 import pandas as pd
-import pytz
 from mrjob.job import MRJob
 from pytz import utc
 
 from utils import connection_hbase, save_to_hbase, connection_mongo
-from neo4j import GraphDatabase
 from beedis import ENDPOINTS, datadis
 from dateutil.relativedelta import relativedelta
+
+data_type_source = {"contracts": "contracts_datadis",
+                    "supplies": "supplies_datadis",
+                    "max_power": "max_power_datadis",
+                    "hourly_consumption": "hourly_consumption_datadis",
+                    "quarter_hourly_consumption": "quarter_hourly_consumption_datadis"}
+
+
+def login(username, password):
+    try:
+        datadis.connection(username=username, password=password)
+        return True
+    except Exception as ex:
+        sys.stderr.write(f"{ex}\n")
+        sys.stderr.write(f"{username}\n")
+
+    return False
 
 
 class DatadisMRJob(MRJob):
 
     def mapper(self, _, line):
         l = line.split('\t')  # [user,password,organisation]
-        has_datadis_conn = False
-
-        # Login User
-        try:
-            datadis.connection(username=l[0], password=l[1])
-            has_datadis_conn = True
-        except Exception as ex:
-            sys.stderr.write(f"{ex}\n")
-            sys.stderr.write(f"{l[0]}\n")
+        has_datadis_conn = login(l[0], l[1])
 
         if has_datadis_conn:
             try:
@@ -52,84 +59,75 @@ class DatadisMRJob(MRJob):
 
         # Loop supplies
         for supply in values:
-            has_connection = False
-
-            # Login User
-            try:
-                datadis.connection(username=supply['user'], password=supply['password'])
-                has_connection = True
-            except Exception as ex:
-                sys.stderr.write(f"{ex}\n")
-                sys.stderr.write(f"{supply['user']}\n")
+            has_connection = login(username=supply['user'], password=supply['password'])
 
             if has_connection:
-                device = datadis_devices.find_one({"_id": supply['cups']})
+                if self.data_type == "hourly_consumption" or self.data_type == "quarter_hourly_consumption":
 
-                freq_rec = 4
+                    device = datadis_devices.find_one({"_id": supply['cups']})
 
-                has_data = False
-                first_date_init = True
-                end_date = datetime.date.today()
-                first_date = None
-                last_date = None
+                    if self.data_type == "hourly_consumption":
+                        freq_rec = 4
 
-                # The device exist in our database and is not None
-                if device and device['timeToEnd']:
-                    init_date = device['timeToEnd']
-                else:
-                    init_date = datetime.datetime.strptime(supply['validDateFrom'], '%Y/%m/%d').date()
+                        has_data = False
+                        first_date_init = True
+                        end_date = datetime.date.today()
+                        first_date = None
+                        last_date = None
 
-                # Obtain data
-                for i in pd.date_range(init_date, end_date, freq=f"{freq_rec}M", tz='Europe/Madrid'):
+                        # The device exist in our database and is not None
+                        if device and device['timeToEnd']:
+                            init_date = device['timeToEnd']
+                        else:
+                            init_date = datetime.datetime.strptime(supply['validDateFrom'], '%Y/%m/%d').date()
 
-                    first_date_of_month = i.replace(day=1)
-                    final_date = first_date_of_month + relativedelta(months=freq_rec) - datetime.timedelta(
-                        days=1)
+                        # Obtain data
+                        for i in pd.date_range(init_date, end_date, freq=f"{freq_rec}M", tz='Europe/Madrid'):
 
-                    try:
-                        consumption = datadis.datadis_query(ENDPOINTS.GET_CONSUMPTION, cups=supply['cups'],
-                                                            distributor_code=supply['distributorCode'],
-                                                            start_date=first_date_of_month.date(),
-                                                            end_date=final_date.date(),
-                                                            measurement_type="0",
-                                                            point_type=str(supply['pointType']))
+                            first_date_of_month = i.replace(day=1)
+                            final_date = first_date_of_month + relativedelta(months=freq_rec) - datetime.timedelta(
+                                days=1)
 
-                        # Consumption has data
-                        if consumption:
-                            has_data = True
-                            # First date gathered
-                            if first_date_init:
-                                first_date = consumption[0]['datetime']
-                                first_date_init = False
+                            try:
+                                consumption = datadis.datadis_query(ENDPOINTS.GET_CONSUMPTION, cups=supply['cups'],
+                                                                    distributor_code=supply['distributorCode'],
+                                                                    start_date=first_date_of_month.date(),
+                                                                    end_date=final_date.date(),
+                                                                    measurement_type="0",  # 0 = hour, 1 = quarter hour
+                                                                    point_type=str(supply['pointType']))
 
-                                # Last date gathered
-                            last_date = consumption[-1]['datetime']
+                                # Consumption has data
+                                if consumption:
+                                    has_data = True
+                                    # First date gathered
+                                    if first_date_init:
+                                        first_date = consumption[0]['datetime']
+                                        first_date_init = False
 
-                    except Exception as ex:
-                        sys.stderr.write(f"{ex}")
+                                        # Last date gathered
+                                    last_date = consumption[-1]['datetime']
 
-                if device:
-                    if has_data:
-                        # TODO: Save to Hbase
+                            except Exception as ex:
+                                sys.stderr.write(f"{ex}")
 
-                        datadis_devices.update_one({"_id": supply['cups']}, {"$set": {
-                            "timeToInit": min(first_date.replace(tzinfo=utc), device['timeToInit'].replace(tzinfo=utc)),
-                            "timeToEnd": max(last_date.replace(tzinfo=utc), device['timeToEnd'].replace(tzinfo=utc)),
-                            "hasError": not has_data, "info": None}})
+                        if device:
+                            if has_data:
+                                # TODO: Save to Hbase
 
-                    else:
-                        datadis_devices.update_one({"_id": supply['cups']}, {"$set": {
-                            "hasError": not has_data,
-                            "info": f"{datetime.datetime.now().__str__()}: The system didn't find new data."}})
-                else:
-                    datadis_devices.insert_one({"_id": supply['cups'], "timeToInit": first_date,
-                                                "timeToEnd": last_date,
-                                                "hasError": not has_data, "info": None})
-
-    def mapper_init(self):
-        fn = glob.glob('*.pickle')
-        config = pickle.load(open(fn[0], 'rb'))
-        self.data_type = config['data_type']
+                                datadis_devices.update_one({"_id": supply['cups']}, {"$set": {
+                                    "timeToInit": min(first_date.replace(tzinfo=utc),
+                                                      device['timeToInit'].replace(tzinfo=utc)),
+                                    "timeToEnd": max(last_date.replace(tzinfo=utc),
+                                                     device['timeToEnd'].replace(tzinfo=utc)),
+                                    "hasError": not has_data, "info": None}})
+                            else:
+                                datadis_devices.update_one({"_id": supply['cups']}, {"$set": {
+                                    "hasError": not has_data,
+                                    "info": f"{datetime.datetime.now().__str__()}: The system didn't find new data."}})
+                        else:
+                            datadis_devices.insert_one({"_id": supply['cups'], "timeToInit": first_date,
+                                                        "timeToEnd": last_date,
+                                                        "hasError": not has_data, "info": None})
 
     def reducer_init(self):
         fn = glob.glob('*.pickle')
@@ -140,6 +138,12 @@ class DatadisMRJob(MRJob):
         self.neo4j = config['neo4j']
         self.mongo_db = config['mongo_db']
         self.data_type = config['data_type']
+
+    def gather_hourly_consumption(self, supply, device, freq_rec):
+        pass
+
+    def gather_quarter_hourly_consumption(self):
+        pass
 
 
 if __name__ == '__main__':

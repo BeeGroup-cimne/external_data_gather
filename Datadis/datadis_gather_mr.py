@@ -8,7 +8,7 @@ import pandas as pd
 from mrjob.job import MRJob
 from pytz import utc
 
-from utils import connection_hbase, save_to_hbase, connection_mongo
+from utils import connection_hbase, save_to_hbase, connection_mongo, get_HTable
 from beedis import ENDPOINTS, datadis
 from dateutil.relativedelta import relativedelta
 
@@ -37,10 +37,11 @@ class DatadisMRJob(MRJob):
 
                 # Check if the user has supplies
                 if supplies:
-                    for supply in supplies[:3]:
+                    for supply in supplies[:3]:  # todo: unlimit nº supplies
                         key = supply['cups']
                         value = supply.copy()
-                        value.update({"user": l[0], "password": l[1], "organisation": l[2]})
+                        # value.update({"user": l[0], "password": l[1], "organisation": l[2]})
+                        value.update({"user": l[0], "password": l[1], "organisation": "testing"})
                         yield key, value
 
             except Exception as ex:
@@ -55,9 +56,14 @@ class DatadisMRJob(MRJob):
             has_connection = login(username=supply['user'], password=supply['password'])
 
             if has_connection:
-                if self.data_type == "hourly_consumption" or self.data_type == "quarter_hourly_consumption":
+                # HBase connection
+                hbase_connection = connection_hbase(self.hbase)
+                hTable = get_HTable(hbase_connection,
+                                    "{}_{}_{}".format(self.datasources['datadis']['hbase_name'],
+                                                      self.data_type,
+                                                      supply['organisation']), {"info": {}})
 
-                    sys.stderr.write(f"{supply['cups']}, {supply['user']}\n")
+                if self.data_type == "hourly_consumption" or self.data_type == "quarter_hourly_consumption":
 
                     if self.data_type == "hourly_consumption":
                         freq_rec = 4
@@ -99,6 +105,16 @@ class DatadisMRJob(MRJob):
 
                             # Consumption has data
                             if consumption:
+                                # HBase save
+                                df_consumption = pd.DataFrame(consumption)
+                                df_consumption['datetime'] = df_consumption['datetime'].astype('int64') // 10 ** 9
+                                aux_consumption = df_consumption.to_dict('records')
+
+                                save_to_hbase(hTable, aux_consumption,
+                                              [("info",
+                                                "all")],
+                                              row_fields=['cups', 'datetime'])
+
                                 has_data = True
                                 # First date gathered
                                 if first_date_init:
@@ -111,9 +127,9 @@ class DatadisMRJob(MRJob):
                         except Exception as ex:
                             sys.stderr.write(f"{ex}")
 
+                    # Control
                     if device:
                         if has_data:
-                            # TODO: Save to Hbase
 
                             datadis_devices.update_one({"_id": supply['cups'], "measurement_type": self.data_type},
                                                        {"$set": {
@@ -142,17 +158,28 @@ class DatadisMRJob(MRJob):
                                                       distributor_code=supply['distributorCode'])
                     if contracts:
                         for contract in contracts:
-                            contract.update({"user": supply['user']})
-                            datadis_contracts.update_one({"cups": contract['cups']}, {"$set": contract}, upsert=True)
+                            contract.update({"nif": supply['user']})
+                            save_to_hbase(hTable, [contract], [("info", "all")], row_fields=['cups', 'nif'])
+
+                            # datadis_contracts.update_one({"cups": contract['cups'], "nif": supply['nif']},
+                            #                              {"$set": contract}, upsert=True)
 
                 if self.data_type == "max_power":
 
                     # MongoDB Collection
-                    datadis_contracts = db['datadis_max_power']
+                    datadis_max_power = db['datadis_max_power']
 
                     init_date = datetime.datetime.strptime(supply['validDateFrom'], '%Y/%m/%d').date()
                     end_date = datetime.date.today()
                     freq_rec = 6
+
+                    max_pow = datadis_max_power.find_one({"_id": supply['cups'], })
+
+                    has_data = False
+                    first_date_init = True
+                    end_date = datetime.date.today()
+                    first_date = None
+                    last_date = None
 
                     for i in pd.date_range(init_date, end_date, freq=f"{freq_rec}M", tz='Europe/Madrid'):
                         first_date_of_month = i.replace(day=1)
@@ -164,17 +191,29 @@ class DatadisMRJob(MRJob):
                                                            start_date=first_date_of_month, end_date=final_date)
                         if max_powers:
                             for max_power in max_powers:
-                                sys.stderr.write(f"{max_power}")
+                                save_to_hbase(hTable, [max_power], [("info", "all")], row_fields=['cups', 'nif'])
 
-                if self.data_type == "supplies":
-                    sys.stderr.write(f"{supply}")
+                                datadis_max_power.update_one(
+                                    {"cups": max_power['cups'], "date": max_power['date'], "time": max_power['time']},
+                                    {"$set": max_power}, upsert=True)
+
+                if self.data_type == "supplies" and supply['organisation']:
+                    del supply['password']
+                    del supply['organisation']
+
+                    supply['nif'] = supply.pop('user')
+
+                    save_to_hbase(hTable, [supply],
+                                  [("info",
+                                    "all")],
+                                  row_fields=['cups'])
 
     def reducer_init(self):
         fn = glob.glob('*.pickle')
         config = pickle.load(open(fn[0], 'rb'))
 
         self.hbase = config['hbase']
-        # self.datasources = config['datasources']
+        self.datasources = config['datasources']
         # self.neo4j = config['neo4j']
         self.mongo_db = config['mongo_db']
         self.data_type = config['data_type']

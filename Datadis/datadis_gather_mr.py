@@ -37,7 +37,7 @@ class DatadisMRJob(MRJob):
 
                 # Check if the user has supplies
                 if supplies:
-                    for supply in supplies:
+                    for supply in supplies[:3]:
                         key = supply['cups']
                         value = supply.copy()
                         value.update({"user": l[0], "password": l[1], "organisation": l[2]})
@@ -49,7 +49,6 @@ class DatadisMRJob(MRJob):
     def reducer(self, key, values):
         # Mongo DB
         db = connection_mongo(self.mongo_db)
-        datadis_devices = db['datadis_devices']
 
         # Loop supplies
         for supply in values:
@@ -58,6 +57,8 @@ class DatadisMRJob(MRJob):
             if has_connection:
                 if self.data_type == "hourly_consumption" or self.data_type == "quarter_hourly_consumption":
 
+                    sys.stderr.write(f"{supply['cups']}, {supply['user']}\n")
+
                     if self.data_type == "hourly_consumption":
                         freq_rec = 4
                         measurement_type = "0"  # hourly
@@ -65,7 +66,9 @@ class DatadisMRJob(MRJob):
                         freq_rec = 1
                         measurement_type = "1"  # quarter hourly
 
-                    device = datadis_devices.find_one({"_id": supply['cups']})
+                    # MongoDB Collection
+                    datadis_devices = db['datadis_devices']
+                    device = datadis_devices.find_one({"_id": supply['cups'], "measurement_type": self.data_type})
 
                     has_data = False
                     first_date_init = True
@@ -112,28 +115,40 @@ class DatadisMRJob(MRJob):
                         if has_data:
                             # TODO: Save to Hbase
 
-                            datadis_devices.update_one({"_id": supply['cups']}, {"$set": {
-                                "timeToInit": min(first_date.replace(tzinfo=utc),
-                                                  device['timeToInit'].replace(tzinfo=utc)),
-                                "timeToEnd": max(last_date.replace(tzinfo=utc),
-                                                 device['timeToEnd'].replace(tzinfo=utc)),
-                                "hasError": not has_data, "info": None}})
+                            datadis_devices.update_one({"_id": supply['cups'], "measurement_type": self.data_type},
+                                                       {"$set": {
+                                                           "timeToInit": min(first_date.replace(tzinfo=utc),
+                                                                             device['timeToInit'].replace(tzinfo=utc)),
+                                                           "timeToEnd": max(last_date.replace(tzinfo=utc),
+                                                                            device['timeToEnd'].replace(tzinfo=utc)),
+                                                           "hasError": not has_data, "info": None}})
                         else:
-                            datadis_devices.update_one({"_id": supply['cups']}, {"$set": {
-                                "hasError": not has_data,
-                                "info": f"{datetime.datetime.now().__str__()}: The system didn't find new data."}})
+                            datadis_devices.update_one({"_id": supply['cups'], "measurement_type": self.data_type},
+                                                       {"$set": {
+                                                           "hasError": not has_data,
+                                                           "info": f"{datetime.datetime.now().__str__()}: The system didn't find new data."}})
                     else:
                         datadis_devices.insert_one({"_id": supply['cups'], "timeToInit": first_date,
                                                     "timeToEnd": last_date,
+                                                    "measurement_type": self.data_type,
                                                     "hasError": not has_data, "info": None})
 
                 if self.data_type == "contracts":
+
+                    # MongoDB Collection
+                    datadis_contracts = db['datadis_contracts']
+
                     contracts = datadis.datadis_query(ENDPOINTS.GET_CONTRACT, cups=supply['cups'],
                                                       distributor_code=supply['distributorCode'])
-                    for contract in contracts:
-                        sys.stderr.write(f"{contract}")
+                    if contracts:
+                        for contract in contracts:
+                            contract.update({"user": supply['user']})
+                            datadis_contracts.update_one({"cups": contract['cups']}, {"$set": contract}, upsert=True)
 
                 if self.data_type == "max_power":
+
+                    # MongoDB Collection
+                    datadis_contracts = db['datadis_max_power']
 
                     init_date = datetime.datetime.strptime(supply['validDateFrom'], '%Y/%m/%d').date()
                     end_date = datetime.date.today()

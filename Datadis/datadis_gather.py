@@ -66,7 +66,7 @@ if __name__ == '__main__':
     users = get_users(config)
 
     # Create and Save TSV File
-    tsv_file_path = generate_tsv(config, users[:2]) # todo: unlimit array
+    tsv_file_path = generate_tsv(config, users[:2])  # todo: unlimit array
 
     input_mr_file_path = put_file_to_hdfs(source_file_path=tsv_file_path, destination_file_path='/tmp/datadis_tmp/')
     remove_file(tsv_file_path)
@@ -83,7 +83,7 @@ if __name__ == '__main__':
         '--file', 'utils.py#utils.py',
         '--jobconf', f'mapreduce.map.env={MOUNTS},{IMAGE},{RUNTYPE}',
         '--jobconf', f'mapreduce.reduce.env={MOUNTS},{IMAGE},{RUNTYPE}',
-        '--jobconf', f'mapreduce.job.name=datadis_import',
+        '--jobconf', f"mapreduce.job.name=datadis_import_{args['data_type']}",
         '--jobconf', f'mapreduce.job.reduces=2'
     ])
 

@@ -83,7 +83,7 @@ class DatadisMRJob(MRJob):
                     last_date = None
 
                     # The device exist in our database and is not None
-                    if device and device['timeToEnd']:
+                    if device and device['timeToEnd'] is not None:
                         init_date = device['timeToEnd']
                     else:
                         init_date = datetime.datetime.strptime(supply['validDateFrom'], '%Y/%m/%d').date()
@@ -168,18 +168,22 @@ class DatadisMRJob(MRJob):
 
                     # MongoDB Collection
                     datadis_max_power = db['datadis_max_power']
+                    max_pow = datadis_max_power.find_one({"cups": supply['cups']})
 
-                    init_date = datetime.datetime.strptime(supply['validDateFrom'], '%Y/%m/%d').date()
+                    if max_pow and max_pow['timeToEnd'] is not None:
+                        init_date = max_pow['timeToEnd']
+                    else:
+                        init_date = datetime.datetime.strptime(supply['validDateFrom'], '%Y/%m/%d').date()
+
                     end_date = datetime.date.today()
-                    freq_rec = 6
-
-                    max_pow = datadis_max_power.find_one({"_id": supply['cups'], })
 
                     has_data = False
                     first_date_init = True
-                    end_date = datetime.date.today()
+
                     first_date = None
                     last_date = None
+
+                    freq_rec = 6
 
                     for i in pd.date_range(init_date, end_date, freq=f"{freq_rec}M", tz='Europe/Madrid'):
                         first_date_of_month = i.replace(day=1)
@@ -190,12 +194,37 @@ class DatadisMRJob(MRJob):
                                                            distributor_code=supply['distributorCode'],
                                                            start_date=first_date_of_month, end_date=final_date)
                         if max_powers:
+                            has_data = True
                             for max_power in max_powers:
+                                if first_date_init:
+                                    first_date_init = False
+                                    last_date = first_date = datetime.datetime.strptime(
+                                        f"{max_power['date']} {max_power['time']}",
+                                        '%Y/%m/%d %H:%M')
+
+                                last_date = max(last_date,
+                                                datetime.datetime.strptime(f"{max_power['date']} {max_power['time']}",
+                                                                           '%Y/%m/%d %H:%M'))
+
                                 save_to_hbase(hTable, [max_power], [("info", "all")], row_fields=['cups', 'nif'])
 
-                                datadis_max_power.update_one(
-                                    {"cups": max_power['cups'], "date": max_power['date'], "time": max_power['time']},
-                                    {"$set": max_power}, upsert=True)
+                    if max_pow:
+                        if has_data:
+                            datadis_max_power.update_one(
+                                {"cups": supply['cups']},
+                                {"$set": {"timeToEnd": max(last_date, max_pow['timeToEnd']),
+                                          "timeToInit": min(first_date, max_pow['timeToInit']),
+                                          "hasError": False}})
+                        else:
+                            datadis_max_power.update_one(
+                                {"cups": supply['cups']},
+                                {"$set": {"hasError": True,
+                                          "info": f"{datetime.datetime.now().__str__()} The system didn't find new data."}})
+                    else:
+                        sys.stderr.write(f"{supply['user']} , {supply['cups']}\n")
+                        datadis_max_power.insert_one(
+                            {"cups": supply['cups'], "timeToEnd": last_date, "timeToInit": first_date,
+                             "hasError": not has_data, "info": ""})
 
                 if self.data_type == "supplies" and supply['organisation']:
                     del supply['password']

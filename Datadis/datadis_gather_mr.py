@@ -41,7 +41,8 @@ class DatadisMRJob(MRJob):
                         key = supply['cups']
                         value = supply.copy()
                         # value.update({"user": l[0], "password": l[1], "organisation": l[2]})
-                        value.update({"user": l[0], "password": l[1], "organisation": "testing"})
+                        value.update(
+                            {"user": l[0], "password": l[1], "organisation": "testing"})  # todo: fix neo4j Organisation
                         yield key, value
 
             except Exception as ex:
@@ -198,17 +199,25 @@ class DatadisMRJob(MRJob):
                             for max_power in max_powers:
                                 if first_date_init:
                                     first_date_init = False
+                                    # Parse data and
                                     last_date = first_date = datetime.datetime.strptime(
                                         f"{max_power['date']} {max_power['time']}",
                                         '%Y/%m/%d %H:%M')
 
-                                last_date = max(last_date,
-                                                datetime.datetime.strptime(f"{max_power['date']} {max_power['time']}",
-                                                                           '%Y/%m/%d %H:%M'))
+                                aux_date = datetime.datetime.strptime(f"{max_power['date']} {max_power['time']}",
+                                                                      '%Y/%m/%d %H:%M')
 
-                                save_to_hbase(hTable, [max_power], [("info", "all")], row_fields=['cups', 'nif'])
+                                max_power.update({"timestamp": int(aux_date.timestamp())})
+                                last_date = max(last_date, aux_date)
 
+                                # Save Data to HBase
+                                save_to_hbase(hTable, [max_power], [("info", "all")], row_fields=['cups', 'timestamp'])
+
+                    # MongoDB Recover Data Log
+                    # Check if is the first time that we gather data
                     if max_pow:
+
+                        # Check if we gather data during a period
                         if has_data:
                             datadis_max_power.update_one(
                                 {"cups": supply['cups']},
@@ -221,10 +230,10 @@ class DatadisMRJob(MRJob):
                                 {"$set": {"hasError": True,
                                           "info": f"{datetime.datetime.now().__str__()} The system didn't find new data."}})
                     else:
-                        sys.stderr.write(f"{supply['user']} , {supply['cups']}\n")
-                        datadis_max_power.insert_one(
-                            {"cups": supply['cups'], "timeToEnd": last_date, "timeToInit": first_date,
-                             "hasError": not has_data, "info": ""})
+                        datadis_max_power.update_one({"cups": supply['cups']},
+                                                     {"$set": {"cups": supply['cups'], "timeToEnd": last_date,
+                                                               "timeToInit": first_date,
+                                                               "hasError": not has_data, "info": ""}}, upsert=True)
 
                 if self.data_type == "supplies" and supply['organisation']:
                     del supply['password']

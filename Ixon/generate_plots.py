@@ -72,7 +72,7 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    config = get_json_config('config.json')
+    config = get_json_config('../config.json')
     db = connection_mongo(config['mongo_db'])
     device_logs = db['ixon_logs']
     building_names = []

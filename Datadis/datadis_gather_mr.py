@@ -96,7 +96,7 @@ class DatadisMRJob(MRJob):
                         final_date = first_date_of_month + relativedelta(months=freq_rec) - datetime.timedelta(
                             days=1)
 
-                        try:
+                        try:  # TODO: 30 Octubre
                             consumption = datadis.datadis_query(ENDPOINTS.GET_CONSUMPTION, cups=supply['cups'],
                                                                 distributor_code=supply['distributorCode'],
                                                                 start_date=first_date_of_month.date(),
@@ -108,7 +108,7 @@ class DatadisMRJob(MRJob):
                             if consumption:
                                 # HBase save
                                 df_consumption = pd.DataFrame(consumption)
-                                df_consumption['datetime'] = df_consumption['datetime'].astype('int64') // 10 ** 9
+                                df_consumption['datetime'] = df_consumption['datetime'].astype('int64') // 10 ** 9 # TODO: Find best way
                                 aux_consumption = df_consumption.to_dict('records')
 
                                 save_to_hbase(hTable, aux_consumption,

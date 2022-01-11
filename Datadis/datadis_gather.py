@@ -23,7 +23,7 @@ def get_users(config):
                     With o
                     Match (o)<-[*]-(d:ns0__Organization)
                     WHERE NOT (d)<-[:ns0__hasSubOrganization]-() return d}}
-                    return n.username, n.password, d.user_id
+                    return n.username, n.password, d.ns0__userId
             """).data()
 
     return users

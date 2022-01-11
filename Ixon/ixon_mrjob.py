@@ -173,7 +173,7 @@ class MRIxonJob(MRJob):
                         # TODO: save value['description']
 
                         results.append({"building": device['building_id'], "device": device['name'],
-                                        "timestamp": datetime.datetime.now().timestamp(), "value": device_value,
+                                        "timestamp": datetime.datetime.utcnow().timestamp(), "value": device_value,
                                         "type": device['type'], "description": device['description'],
                                         "object_id": device['object_id']})
 

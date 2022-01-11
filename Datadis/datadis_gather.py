@@ -25,7 +25,6 @@ def get_users(config):
                     WHERE NOT (d)<-[:ns0__hasSubOrganization]-() return d}}
                     return n.username, n.password, d.ns0__userId
             """).data()
-
     return users
 
 
@@ -35,7 +34,8 @@ def generate_tsv(config, data):
             password = config['key_decoder']
             enc_dict = ast.literal_eval(i['n.password'])
             password_decoded = decrypt(enc_dict, password).decode('utf-8')
-            tsv_str = f"{i['n.username']}\t{password_decoded}\t{i['d.user_id']}\n"
+            tsv_str = f"{i['n.username']}\t{password_decoded}\t{i['d.ns0__userId']}\n"
+            print(tsv_str)
             file.write(tsv_str)
     return file.name
 

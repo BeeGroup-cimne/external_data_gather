@@ -40,9 +40,7 @@ class DatadisMRJob(MRJob):
                     for supply in supplies[:3]:  # todo: unlimit nº supplies
                         key = supply['cups']
                         value = supply.copy()
-                        # value.update({"user": l[0], "password": l[1], "organisation": l[2]})
-                        value.update(
-                            {"user": l[0], "password": l[1], "organisation": "testing"})  # todo: fix neo4j Organisation
+                        value.update({"user": l[0], "password": l[1], "organisation": l[2]})
                         yield key, value
 
             except Exception as ex:
@@ -108,15 +106,21 @@ class DatadisMRJob(MRJob):
                             if consumption:
                                 # HBase save
                                 df_consumption = pd.DataFrame(consumption)
-                                df_consumption['datetime'] = df_consumption['datetime'].astype('int64') // 10 ** 9 # TODO: Find best way
+
+                                # Cast datetime64[ns] to timestamp (int64)
+                                df_consumption['datetime'] = df_consumption['datetime'].astype('int64') // 10 ** 9
+
+                                # Rename Column datetime to timestamp
+                                df_consumption.rename(columns={"datetime": "timestamp"}, inplace=True)
                                 aux_consumption = df_consumption.to_dict('records')
 
                                 save_to_hbase(hTable, aux_consumption,
                                               [("info",
                                                 "all")],
-                                              row_fields=['cups', 'datetime'])
+                                              row_fields=['cups', 'timestamp'])
 
                                 has_data = True
+
                                 # First date gathered
                                 if first_date_init:
                                     first_date = consumption[0]['datetime']
@@ -152,18 +156,12 @@ class DatadisMRJob(MRJob):
 
                 if self.data_type == "contracts":
 
-                    # MongoDB Collection
-                    datadis_contracts = db['datadis_contracts']
-
                     contracts = datadis.datadis_query(ENDPOINTS.GET_CONTRACT, cups=supply['cups'],
                                                       distributor_code=supply['distributorCode'])
                     if contracts:
                         for contract in contracts:
                             contract.update({"nif": supply['user']})
                             save_to_hbase(hTable, [contract], [("info", "all")], row_fields=['cups', 'nif'])
-
-                            # datadis_contracts.update_one({"cups": contract['cups'], "nif": supply['nif']},
-                            #                              {"$set": contract}, upsert=True)
 
                 if self.data_type == "max_power":
 
@@ -252,7 +250,6 @@ class DatadisMRJob(MRJob):
 
         self.hbase = config['hbase']
         self.datasources = config['datasources']
-        # self.neo4j = config['neo4j']
         self.mongo_db = config['mongo_db']
         self.data_type = config['data_type']
 

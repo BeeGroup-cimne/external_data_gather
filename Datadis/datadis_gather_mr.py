@@ -37,7 +37,7 @@ class DatadisMRJob(MRJob):
 
                 # Check if the user has supplies
                 if supplies:
-                    for supply in supplies[:3]:  # todo: unlimit nº supplies
+                    for supply in supplies:  # todo: unlimit nº supplies
                         key = supply['cups']
                         value = supply.copy()
                         value.update({"user": l[0], "password": l[1], "organisation": l[2]})

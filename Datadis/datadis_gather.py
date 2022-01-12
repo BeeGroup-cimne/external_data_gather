@@ -35,7 +35,6 @@ def generate_tsv(config, data):
             enc_dict = ast.literal_eval(i['n.password'])
             password_decoded = decrypt(enc_dict, password).decode('utf-8')
             tsv_str = f"{i['n.username']}\t{password_decoded}\t{i['d.ns0__userId']}\n"
-            print(tsv_str)
             file.write(tsv_str)
     return file.name
 

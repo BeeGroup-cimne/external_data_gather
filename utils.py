@@ -26,17 +26,8 @@ def save_to_mongo(mongo, documents, index_field=None):
 
 
 # HBase functions
-def connection_hbase(config):
-    if 'db' in config and config['db'] != "":
-        hbase = happybase.Connection(config['host'], config['port'], table_prefix=config['db'],
-                                     table_prefix_separator=":")
-    else:
-        hbase = happybase.Connection(config['host'], config['port'])
-    hbase.open()
-    return hbase
 
-
-def get_HTable(hbase, table_name, cf=None):
+def __get_h_table__(hbase, table_name, cf=None):
     try:
         if not cf:
             cf = {"cf": {}}
@@ -49,8 +40,11 @@ def get_HTable(hbase, table_name, cf=None):
     return hbase.table(table_name)
 
 
-def save_to_hbase(HTable, documents, cf_mapping, row_fields=None, version=int(time.time()), batch_size=1000):
-    htbatch = HTable.batch(timestamp=version, batch_size=batch_size)
+def save_to_hbase(documents, h_table_name, hbase_connection, cf_mapping, row_fields=None,
+                  version=int(time.time()), batch_size=1000):
+    hbase = happybase.Connection(**hbase_connection)
+    table = __get_h_table__(hbase, h_table_name, {cf: {} for cf, _ in cf_mapping})
+    h_batch = table.batch(timestamp=version, batch_size=batch_size)
     row_auto = 0
     uid = uuid.uuid4()
     for d in documents:
@@ -68,8 +62,8 @@ def save_to_hbase(HTable, documents, cf_mapping, row_fields=None, version=int(ti
                 for c in fields:
                     if c in d:
                         values["{cf}:{c}".format(cf=cf, c=c)] = str(d[c])
-            htbatch.put(str(row), values)
-    htbatch.send()
+        h_batch.put(str(row), values)
+    h_batch.send()
 
 
 def save_to_kafka(topic, info_document, config, batch=1000):

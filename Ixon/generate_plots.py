@@ -96,6 +96,21 @@ def device_plot(devices, data_init, data_end):
         plt.savefig('./reports/IES Marta Mata/' + d_ + '.png')
 
 
+def ranking_loses(data_init, data_end):
+    results = list(device_logs.aggregate([{"$match": {"date": {"$gte": data_init,
+                                                               "$lt": data_end}, "successful": False}},
+                                          {"$group": {"_id": "$building_name", "count": {"$sum": 1}}},
+                                          {"$sort": {"count": -1}}]))
+    df = pd.DataFrame(results)
+
+    plt.figure(figsize=(10, 10), dpi=600)
+    sns.set(font_scale=0.5)
+    g = sns.barplot(data=df, x="_id", y="count")
+
+    plt.xticks(rotation=90)
+    plt.show()
+
+
 if __name__ == '__main__':
     # Arguments
     parser = argparse.ArgumentParser()
@@ -107,7 +122,7 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    config = get_json_config('../config.json')
+    config = get_json_config('config.json')
     db = connection_mongo(config['mongo_db'])
     device_logs = db['ixon_logs']
     ixon_devices = db['ixon_devices']
@@ -134,3 +149,6 @@ if __name__ == '__main__':
         for building_id in building_ids:
             devices = ixon_devices.find({"building_id": building_id})
             device_plot(list(devices), data_init, data_end)
+
+    if args.type == 'ranking':
+        ranking_loses(data_init, data_end)

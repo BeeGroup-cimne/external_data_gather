@@ -1,13 +1,17 @@
-import json
 import pickle
+import base64
+import hashlib
+import json
+import os
+import subprocess
+import time
 import uuid
 from copy import deepcopy
 from datetime import datetime
-
 from kafka import KafkaProducer
-from pymongo import MongoClient
 import happybase
-import time
+from Crypto.Cipher import AES
+from pymongo import MongoClient
 
 
 def read_config(conf_file):
@@ -125,7 +129,6 @@ def save_to_hbase(documents, h_table_name, hbase_connection, cf_mapping, row_fie
         h_batch.put(str(row), values)
     h_batch.send()
 
-
 def save_to_kafka(topic, info_document, config, batch=1000):
     info_document = deepcopy(info_document)
     servers = [f"{host}:{port}" for host, port in zip(config['hosts'], config['ports'])]
@@ -177,3 +180,51 @@ def get_hbase_data_batch(hbase_conf, hbase_table, row_start=None, row_stop=None,
                 current_limit = min(batch_size, limit - current_register)
         row_start = last_record[:-1] + chr(last_record[-1] + 1).encode("utf-8")
     yield []
+
+
+def un_pad(s):
+    """
+    remove the extra spaces at the end
+    :param s:
+    :return:
+    """
+    return s.rstrip()
+
+
+def decrypt(enc_dict, password):
+    # decode the dictionary entries from base64
+    salt = base64.b64decode(enc_dict['salt'])
+    enc = base64.b64decode(enc_dict['cipher_text'])
+    iv = base64.b64decode(enc_dict['iv'])
+
+    # generate the private key from the password and salt
+    private_key = hashlib.scrypt(password.encode(), salt=salt, n=2 ** 14, r=8, p=1, dklen=32)
+
+    # create the cipher config
+    cipher = AES.new(private_key, AES.MODE_CBC, iv)
+
+    # decrypt the cipher text
+    decrypted = cipher.decrypt(enc)
+
+    # unpad the text to remove the added spaces
+    original = un_pad(decrypted)
+
+    return original
+
+
+def get_json_config(path):
+    file = open(path, "r")
+    return json.load(file)
+
+
+def put_file_to_hdfs(source_file_path, destination_file_path):
+    output = subprocess.call(f"hdfs dfs -put -f {source_file_path} {destination_file_path}", shell=True)
+    return destination_file_path + source_file_path.split('/')[-1]
+
+
+def remove_file_from_hdfs(file_path):
+    output = subprocess.call(f"hdfs dfs -rm {file_path}", shell=True)
+
+
+def remove_file(file_path):
+    os.remove(file_path)

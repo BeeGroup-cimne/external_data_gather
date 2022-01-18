@@ -1,117 +1,93 @@
-import json
-import os
 import argparse
-import datetime
-import sys
-sys.path.append(os.getcwd())
-from utils import *
+import ast
+import os
+import pickle
+from tempfile import NamedTemporaryFile
+
+from neo4j import GraphDatabase
+
+from datadis_gather_mr import DatadisMRJob
+from utils import decrypt, put_file_to_hdfs, remove_file, remove_file_from_hdfs, get_json_config
 
 
-data_type_source = {"contracts": "contracts_datadis",
-                    "supplies": "supplies_datadis",
-                    "max_power": "max_power_datadis",
-                    "hourly_consumption": "hourly_consumption_datadis",
-                    "quarter_hourly_consumption": "quarter_hourly_consumption_datadis"}
+# sys.path.append(os.getcwd())
 
 
-def get_config():
-    f = open("Datadis/config.json", "r")
-    return json.load(f)
+def get_users(config):
+    driver = GraphDatabase.driver(config['neo4j']['uri'], auth=(config['neo4j']['user'], config['neo4j']['password']))
+    with driver.session() as session:
+        users = session.run(
+            f"""
+                Match (n:DatadisSource)<-[:ns0__hasSource]->(o:ns0__Organization)
+                CALL{{
+                    With o
+                    Match (o)<-[*]-(d:ns0__Organization)
+                    WHERE NOT (d)<-[:ns0__hasSubOrganization]-() return d}}
+                    return n.username, n.password, d.ns0__userId
+            """).data()
+    return users
 
 
-def connection_mongo():
-    config = get_config()
-    cli = MongoClient("mongodb://{user}:{pwd}@{host}:{port}/{db}".format(
-        **config['mongo_db']))
-    db = cli[config['mongo_db']['db']]
-    return db
-
-
-def get_cups_list():
-    conn = connection_mongo()
-    res = conn["supplies_datadis"].find({}, no_cursor_timeout=True)
-    return [i["cups"] for i in res]
-
-
-def get_data(data_type, cups = None):
-    conn = connection_mongo()
-    if not cups: 
-        res = conn[data_type_source[data_type]].find({},
-                                                     no_cursor_timeout=True)
-    else:        
-        res = conn[data_type_source[data_type]].find({"cups": cups},
-                                                     no_cursor_timeout=True)        
-    data = []
-    for i in res:
-        item = {}
-        for k in i.keys():
-            if k !="_id":                
-                item[k] = i[k]
-
-        data.append(item)
-
-    if data_type == "max_power":
+def generate_tsv(config, data):
+    with NamedTemporaryFile(delete=False, suffix=".tsv", mode='w') as file:
         for i in data:
-            i["date"] = int(datetime.datetime.strptime(i["date"],"%Y/%m/%d").timestamp())
-    elif data_type in ["hourly_consumption","quarter_hourly_consumption"]:
-        for i in data:
-            i["datetime"] = int(i["datetime"].timestamp())
-    return data
-    
+            password = config['key_decoder']
+            enc_dict = ast.literal_eval(i['n.password'])
+            password_decoded = decrypt(enc_dict, password).decode('utf-8')
+            tsv_str = f"{i['n.username']}\t{password_decoded}\t{i['d.ns0__userId']}\n"
+            file.write(tsv_str)
+    return file.name
 
-def load_datadis_hbase_by_cups(data_type):   
-    config = get_config()
-    cups_list = get_cups_list()
-    for cups in cups_list:        
-        documents = get_data(data_type,cups)
-        print(cups)
-        try:
-            hbase = connection_hbase(config["hbase"])
-            HTable = 'datadis_' + data_type
-            htable = get_HTable(hbase, HTable, {"info": {}})
-            save_to_hbase(htable,
-                          documents,
-                          [("info", "all")],
-                          row_fields=["cups", "datetime"])
 
-            print('loaded')
-        except Exception as e:
-            print('ERROR load to hbase:%s' % e)
-            
+if __name__ == '__main__':
 
-def load_datadis_hbase(data_type):
-    documents = get_data(data_type)
-    config = get_config()
-    hbase = connection_hbase(config["hbase"])
-    HTable = 'datadis_' + data_type
-    htable = get_HTable(hbase, HTable, {"info": {}})    
+    # Arguments
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-d", "--data_type", required=True, type=str)
 
-    if data_type in ["contracts", "supplies"]:
-        save_to_hbase(htable,
-                      documents,
-                      [("info", "all")],
-                      row_fields=["u_id", "cups"])
+    if os.getenv("PYCHARM_HOSTED"):
+        args = vars(parser.parse_args(['-d', "hourly_consumption"]))
     else:
-        #max_power
-        save_to_hbase(htable,
-                      documents,
-                      [("info", "all")],
-                      row_fields=["cups", "date"])
+        args = vars(parser.parse_args())
 
+    # Read Config
+    config = get_json_config('config.json')
 
-if __name__ == "__main__":
-    ap = argparse.ArgumentParser()
-    ap.add_argument("-d",
-                    "--data_type",
-                    required=True,
-                    help="type of data to import: one of {}".format(data_type_source.keys()))
-    args = vars(ap.parse_args())
-    if args['data_type'] in data_type_source.keys():
-        if args['data_type'] in ["hourly_consumption", 
-                                 "quarter_hourly_consumption"]:
-            load_datadis_hbase_by_cups(args['data_type'])       
-        else:
-            load_datadis_hbase(args['data_type'])
-    else:
-        print("Incorrect type")        
-           
+    # New Config
+    job_config = config.copy()
+    job_config.update(args)
+
+    f = NamedTemporaryFile(delete=False, prefix='config_job_', suffix='.pickle')
+    f.write(pickle.dumps(job_config))
+    f.close()
+
+    # Get Users
+    users = get_users(config)
+
+    # Create and Save TSV File
+    tsv_file_path = generate_tsv(config, users[:2])  # todo: unlimit nº users
+
+    input_mr_file_path = put_file_to_hdfs(source_file_path=tsv_file_path, destination_file_path='/tmp/datadis_tmp/')
+    remove_file(tsv_file_path)
+
+    # Map Reduce
+
+    MOUNTS = 'YARN_CONTAINER_RUNTIME_DOCKER_MOUNTS=/hadoop_stack:/hadoop_stack:ro'
+    IMAGE = 'YARN_CONTAINER_RUNTIME_DOCKER_IMAGE=docker.tech.beegroup-cimne.com/mr/mr-datadis'
+    RUNTYPE = 'YARN_CONTAINER_RUNTIME_TYPE=docker'
+
+    datadis_job = DatadisMRJob(args=[
+        '-r', 'hadoop', 'hdfs://{}'.format(input_mr_file_path),
+        '--file', f.name,
+        '--file', 'utils.py#utils.py',
+        '--jobconf', f'mapreduce.map.env={MOUNTS},{IMAGE},{RUNTYPE}',
+        '--jobconf', f'mapreduce.reduce.env={MOUNTS},{IMAGE},{RUNTYPE}',
+        '--jobconf', f"mapreduce.job.name=datadis_import_{args['data_type']}",
+        '--jobconf', f'mapreduce.job.reduces=2'
+    ])
+
+    with datadis_job.make_runner() as runner:
+        runner.run()
+
+    remove_file_from_hdfs(input_mr_file_path)
+    remove_file(f.name)

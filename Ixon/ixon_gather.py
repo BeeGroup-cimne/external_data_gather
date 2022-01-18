@@ -1,11 +1,11 @@
 import json
-import os
-import subprocess
 import tempfile
+
 from pymongo import MongoClient
 
 from ixon_mrjob import MRIxonJob
 from logger import setup_logger
+from utils import put_file_to_hdfs, remove_file_from_hdfs
 
 
 def read_configuration(path='config.json'):
@@ -39,15 +39,6 @@ def generate_tsv(collection):
         log.error(ex)
 
 
-def put_file_to_hdfs(source_file_path, destination_file_path='/tmp/ixon_tmp/'):
-    try:
-        output = subprocess.call(f"hdfs dfs -put -f {source_file_path} {destination_file_path}", shell=True)
-        os.remove(source_file_path)
-        return '/tmp/ixon_tmp/' + source_file_path.split('/')[-1]
-    except Exception as ex:
-        log.error(ex)
-
-
 if __name__ == '__main__':
     log = setup_logger('manage_credentials')
 
@@ -64,7 +55,7 @@ if __name__ == '__main__':
         tmp_path = generate_tsv(collection)
         log.info("TSV File has been created successfully.")
 
-        hdfs_out_path = put_file_to_hdfs(source_file_path=tmp_path)
+        hdfs_out_path = put_file_to_hdfs(source_file_path=tmp_path, destination_file_path="/tmp/ixon_tmp/")
         log.info("TSV File has been uploaded to HDFS successfully.")
     except Exception as ex:
         log.error(ex)
@@ -93,4 +84,4 @@ if __name__ == '__main__':
     with mr_job.make_runner() as runner:
         runner.run()
 
-    exit(0)
+    remove_file_from_hdfs(hdfs_out_path)

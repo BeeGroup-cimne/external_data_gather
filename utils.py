@@ -17,6 +17,7 @@ from pymongo import MongoClient
 def read_config(conf_file):
     with open(conf_file) as config_f:
         config = json.load(config_f)
+        config['neo4j']['auth'] = tuple(config['neo4j']['auth'])
         return config
 
 
@@ -209,7 +210,7 @@ def decrypt(enc_dict, password):
     # unpad the text to remove the added spaces
     original = un_pad(decrypted)
 
-    return original
+    return original.decode('utf-8')
 
 
 def get_json_config(path):

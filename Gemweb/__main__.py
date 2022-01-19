@@ -1,11 +1,7 @@
 import argparse
+import os
 
 import gemweb
-import json
-from datetime import datetime
-import os
-import sys
-
 import pandas as pd
 
 import settings
@@ -40,7 +36,6 @@ data_types = {
     # }
 }
 
-
 if __name__ == '__main__':
     ap = argparse.ArgumentParser()
     ap.add_argument("-s", "--store", required=True, help="Where to store the data. one of [k (kafka), h (hbase)]")
@@ -55,7 +50,7 @@ if __name__ == '__main__':
 
     # Connection to neo4j to get all GemwebSources user,passwords and main org
     # TODO: Query Neo4j to get connection data
-    gemweb_connections = [{"username": "", "password": "", "namespace": "http://icaen.cat#",
+    gemweb_connections = [{"username": "", "password": "", "namespace": "https://icaen.cat#",
                            "user": "icaen"}]
     for connection in gemweb_connections:
         mongo_logger.create(config['mongo_db'], config['datasources']['gemweb']['log'], 'gather',
@@ -64,7 +59,7 @@ if __name__ == '__main__':
             mongo_logger.log("log in to gemweb API")
             # TODO: LOGIN TO GEMWEB
             gemweb = config['special_gemweb_data']
-            #gemweb.gemweb.connection(connection['username'], connection['password'], timezone="UTC")
+            # gemweb.gemweb.connection(connection['username'], connection['password'], timezone="UTC")
             mongo_logger.log("log in to gemweb API successful")
         except Exception as e:
             mongo_logger.log(f"log in to gemweb API error: {e}")
@@ -111,7 +106,7 @@ if __name__ == '__main__':
                 buildings_df = pd.DataFrame.from_records(data['buildings'])
                 buildings_df.set_index("id", inplace=True)
                 df = supplies_df.join(buildings_df, on='id_centres_consum', lsuffix="supply", rsuffix="building")
-                df.rename(columns={"id":"dev_gem_id"}, inplace=True)
+                df.rename(columns={"id": "dev_gem_id"}, inplace=True)
                 mongo_logger.log(f"data joined for harmonization correctly")
             except Exception as e:
                 mongo_logger.log(f"error joining dataframes: {e}")
@@ -150,3 +145,6 @@ if __name__ == '__main__':
                     mongo_logger.log(f"successfully saved to hbase")
                 except Exception as e:
                     mongo_logger.log(f"error saving to hbase: {e}")
+        else:
+            mongo_logger.log(f"store {args.store} is not supported")
+

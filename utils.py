@@ -30,7 +30,7 @@ class mongo_logger(object):
     log_type = None
 
     @staticmethod
-    def get_connection(self):
+    def get_connection():
         return mongo_logger.mongo_connection
 
     @staticmethod

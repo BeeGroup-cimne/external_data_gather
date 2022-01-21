@@ -162,7 +162,10 @@ class DatadisMRJob(MRJob, ABC):
             datadis_devices = \
                 mongo_logger.get_connection()[self.config['datasources']['datadis']['log_devices']]
             # get the highest page document log
-            device = datadis_devices.find_one({"_id": supply['cups']}).sort([("page", -1)]).limit(1)[0]
+            try:
+                device = datadis_devices.find({"_id": supply['cups']}).sort([("page", -1)]).limit(1)[0]
+            except IndexError:
+                device = None
             if not device:
                 # if there is no log document create a new one
                 device = {

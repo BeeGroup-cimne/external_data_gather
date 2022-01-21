@@ -205,7 +205,9 @@ class DatadisMRJob(MRJob, ABC):
                         # Obtain data
                         while date_ini < date_end:
                             current_date = min(date_end, date_ini + relativedelta(months=type_params['freq_rec']))
-                            request_log.update({"date_from": date_ini, "date_to": date_end, "data_type": data_type})
+                            request_log.update({"date_from": datetime.combine(date_ini, datetime.min.time()),
+                                                "date_to": datetime.combine(date_end, datetime.min.time()),
+                                                "data_type": data_type})
                             try:
                                 kwargs = parse_arguments(supply, type_params, date_ini, date_end)
                                 consumption = datadis.datadis_query(type_params['endpoint'], **kwargs)

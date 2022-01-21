@@ -67,7 +67,7 @@ def get_static_data(store, config):
             mongo_logger.log(f"store {store} is not supported")
 
 
-def get_timeseries_data(store, data_type, config):
+def get_timeseries_data(store, config):
 
     # generate config file
     job_config = config.copy()
@@ -93,7 +93,7 @@ def get_timeseries_data(store, data_type, config):
         '--file', 'utils.py#utils.py',
         '--jobconf', f'mapreduce.map.env={MOUNTS},{IMAGE},{RUNTYPE}',
         '--jobconf', f'mapreduce.reduce.env={MOUNTS},{IMAGE},{RUNTYPE}',
-        '--jobconf', f"mapreduce.job.name=datadis_import_{data_type}",
+        '--jobconf', f"mapreduce.job.name=datadis_import",
         '--jobconf', f'mapreduce.job.reduces=2'
     ])
     try:

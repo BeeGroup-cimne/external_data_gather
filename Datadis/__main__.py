@@ -16,4 +16,4 @@ if __name__ == '__main__':
         args = ap.parse_args()
 
     config = read_config(settings.conf_file)
-    get_timeseries_data(args.store, args.data_type, config)
+    get_timeseries_data(args.store, config)

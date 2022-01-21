@@ -1,5 +1,3 @@
-import argparse
-import ast
 import os
 import pickle
 from tempfile import NamedTemporaryFile
@@ -9,7 +7,7 @@ from beedis import datadis, ENDPOINTS
 import settings
 from Datadis.datadis_utils import get_users, generate_input_tsv
 from datadis_gather_mr import DatadisMRJob
-from utils import decrypt, put_file_to_hdfs, remove_file, remove_file_from_hdfs, read_config, mongo_logger, \
+from utils import decrypt, put_file_to_hdfs, remove_file, remove_file_from_hdfs, mongo_logger, \
     save_to_kafka, save_to_hbase
 
 
@@ -80,7 +78,7 @@ def get_timeseries_data(store, data_type, config):
 
     # Get Users to generate the MR input file
     users = get_users(config)
-    local_input = generate_input_tsv(config, users[:1])  # todo: unlimit nº users
+    local_input = generate_input_tsv(config, users)
     input_mr = put_file_to_hdfs(source_file_path=local_input, destination_file_path='/tmp/datadis_tmp/')
     remove_file(local_input)
 
@@ -104,6 +102,6 @@ def get_timeseries_data(store, data_type, config):
         remove_file_from_hdfs(input_mr)
         remove_file(config.name)
     except Exception as e:
-        print("error in map_reduce: {e}")
+        print(f"error in map_reduce: {e}")
         remove_file_from_hdfs(input_mr)
         remove_file(config.name)

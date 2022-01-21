@@ -1,7 +1,7 @@
 from datetime import datetime
 import glob
 import pickle
-
+import bson
 import sys
 from abc import ABC
 
@@ -137,10 +137,11 @@ class DatadisMRJob(MRJob, ABC):
             for supply in supplies:
                 supply.update({"nif": credentials['username']})
             save_datadis_data(supplies, credentials, "supplies", ["cups"], [("info", "all")], self.config, mongo_logger)
-
+            log_exported = mongo_logger.export_log()
+            log_exported['log_id'] = str(log_exported['log_id'])
             for supply in supplies:
                 key = supply['cups']
-                value = {"supply": supply, "credentials": credentials, "logger": mongo_logger.export_log()}
+                value = {"supply": supply, "credentials": credentials, "logger": log_exported}
                 yield key, value
         except LoginException as e:
             mongo_logger.log(f"Error in login to datadis for user {credentials['username']}: {e}")
@@ -155,7 +156,9 @@ class DatadisMRJob(MRJob, ABC):
         for info in values:
             supply = info['supply']
             credentials = info['credentials']
-            mongo_logger.import_log(info['logger'], "gather")
+            import_log = info['logger']
+            import_log['log_id'] = bson.objectid.ObjectId(import_log['log_id'])
+            mongo_logger.import_log(import_log, "gather")
             datadis_devices = \
                 mongo_logger.get_connection()[self.config['datasources']['datadis']['log_devices']]
             # get the highest page document log

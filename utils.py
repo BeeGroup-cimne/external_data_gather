@@ -24,29 +24,34 @@ def read_config(conf_file):
 class mongo_logger(object):
     mongo_conf = None
     collection = None
-
+    mongo_connection = None
     log_id = None
     db = None
     log_type = None
 
     @staticmethod
+    def get_connection(self):
+        return mongo_logger.mongo_connection
+
+    @staticmethod
     def __connect__(mongo_conf, collection):
         mongo_logger.mongo_conf = mongo_conf
         mongo_logger.collection = collection
-        mongo = mongo_logger.connection_mongo(mongo_logger.mongo_conf)
-        mongo_logger.db = mongo[mongo_logger.collection]
+        mongo_logger.mongo_connection = mongo_logger.__connection_mongo__(mongo_logger.mongo_conf)
+        mongo_logger.db = mongo_logger.mongo_connection[mongo_logger.collection]
+
     @staticmethod
-    def create(mongo_conf, collection, log_type,  user):
+    def create(mongo_conf, collection, log_type,  **kwargs):
         mongo_logger.__connect__(mongo_conf, collection)
         mongo_logger.log_type = log_type
         log_document = {
-            "user": user,
             "logs": {
                 "gather": [],
                 "store": [],
                 "harmonize": []
             }
         }
+        log_document.update(kwargs)
         mongo_logger.log_id = mongo_logger.db.insert_one(log_document).inserted_id
 
     @staticmethod
@@ -74,7 +79,7 @@ class mongo_logger(object):
 
     # MongoDB functions
     @staticmethod
-    def connection_mongo(config):
+    def __connection_mongo__(config):
         cli = MongoClient("mongodb://{user}:{pwd}@{host}:{port}/{db}".format(**config))
         db = cli[config['db']]
         return db
@@ -211,11 +216,6 @@ def decrypt(enc_dict, password):
     original = un_pad(decrypted)
 
     return original.decode('utf-8')
-
-
-def get_json_config(path):
-    file = open(path, "r")
-    return json.load(file)
 
 
 def put_file_to_hdfs(source_file_path, destination_file_path):

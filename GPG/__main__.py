@@ -17,7 +17,7 @@ if __name__ == '__main__':
     else:
         args = ap.parse_args()
     config = read_config(settings.conf_file)
-    mongo_logger.create(config['mongo_db'], config['datasources']['GPG']['log'], 'gather', args.user)
+    mongo_logger.create(config['mongo_db'], config['datasources']['GPG']['log'], 'gather', user=args.user)
 
     mongo_logger.log("start to parse a new file")
     try:

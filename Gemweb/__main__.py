@@ -50,11 +50,11 @@ if __name__ == '__main__':
 
     # Connection to neo4j to get all GemwebSources user,passwords and main org
     # TODO: Query Neo4j to get connection data
-    gemweb_connections = [{"username": "", "password": "", "namespace": "https://icaen.cat#",
+    gemweb_connections = [{"username": "icaen_api", "password": "", "namespace": "https://icaen.cat#",
                            "user": "icaen"}]
     for connection in gemweb_connections:
         mongo_logger.create(config['mongo_db'], config['datasources']['gemweb']['log'], 'gather',
-                            connection['user'])
+                            user=connection['user'], datasource_user=connection['username'])
         try:
             mongo_logger.log("log in to gemweb API")
             # TODO: LOGIN TO GEMWEB

@@ -187,7 +187,7 @@ class DatadisMRJob(MRJob, ABC):
 
             request_log = {}
             try:
-                login(username=supply['username'], password=supply['password'])
+                login(username=credentials['username'], password=credentials['password'])
                 request_log.update({"login": "success"})
                 for data_type, type_params in data_types_dict.items():
                     mongo_logger.log(f"obtaining {data_type} data from datadis")
@@ -255,10 +255,10 @@ class DatadisMRJob(MRJob, ABC):
 
             except LoginException as e:
                 request_log.update({"login": "fail"})
-                mongo_logger.log(f"Error in login to datadis for user {supply['username']}: {e}")
+                mongo_logger.log(f"Error in login to datadis for user {credentials['username']}: {e}")
             except GetDataException as e:
                 request_log.update({"data_gather": "fail"})
-                mongo_logger.log(f"Error gathering data from datadis for user {supply['username']}: {e}")
+                mongo_logger.log(f"Error gathering data from datadis for user {credentials['username']}: {e}")
             except Exception as e:
                 mongo_logger.log(f"Received and exception: {e}")
 

@@ -72,9 +72,9 @@ def get_timeseries_data(store, config):
     # generate config file
     job_config = config.copy()
     job_config.update({"store": store, "kafka_message_size": settings.kafka_message_size})
-    config = NamedTemporaryFile(delete=False, prefix='config_job_', suffix='.pickle')
-    config.write(pickle.dumps(job_config))
-    config.close()
+    config_file = NamedTemporaryFile(delete=False, prefix='config_job_', suffix='.pickle')
+    config_file.write(pickle.dumps(job_config))
+    config_file.close()
 
     # Get Users to generate the MR input file
     users = get_users(config)
@@ -89,7 +89,7 @@ def get_timeseries_data(store, config):
 
     datadis_job = DatadisMRJob(args=[
         '-r', 'hadoop', 'hdfs://{}'.format(input_mr),
-        '--file', config.name,
+        '--file', config_file.name,
         '--file', 'utils.py#utils.py',
         '--jobconf', f'mapreduce.map.env={MOUNTS},{IMAGE},{RUNTYPE}',
         '--jobconf', f'mapreduce.reduce.env={MOUNTS},{IMAGE},{RUNTYPE}',
@@ -100,8 +100,8 @@ def get_timeseries_data(store, config):
         with datadis_job.make_runner() as runner:
             runner.run()
         remove_file_from_hdfs(input_mr)
-        remove_file(config.name)
+        remove_file(config_file.name)
     except Exception as e:
         print(f"error in map_reduce: {e}")
         remove_file_from_hdfs(input_mr)
-        remove_file(config.name)
+        remove_file(config_file.name)

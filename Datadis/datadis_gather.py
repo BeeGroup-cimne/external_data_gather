@@ -67,11 +67,11 @@ def get_static_data(store, config):
             mongo_logger.log(f"store {store} is not supported")
 
 
-def get_timeseries_data(store, config):
+def get_timeseries_data(store, policy, config):
 
     # generate config file
     job_config = config.copy()
-    job_config.update({"store": store, "kafka_message_size": settings.kafka_message_size})
+    job_config.update({"store": store, "kafka_message_size": settings.kafka_message_size, "policy": policy})
     config_file = NamedTemporaryFile(delete=False, prefix='config_job_', suffix='.pickle')
     config_file.write(pickle.dumps(job_config))
     config_file.close()

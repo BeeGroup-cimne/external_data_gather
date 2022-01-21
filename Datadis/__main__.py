@@ -10,10 +10,10 @@ if __name__ == '__main__':
     ap.add_argument("-p", "--policy", required=True, help="The policy for updating data. One of [last, repair]")
 
     if os.getenv("PYCHARM_HOSTED"):
-        args_t = ["--store", "k"]
+        args_t = ["--store", "k", "-p", "last"]
         args = ap.parse_args(args_t)
     else:
         args = ap.parse_args()
 
     config = read_config(settings.conf_file)
-    get_timeseries_data(args.store, config)
+    get_timeseries_data(args.store, args.policy, config)

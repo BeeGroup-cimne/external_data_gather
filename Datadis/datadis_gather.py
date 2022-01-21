@@ -6,7 +6,7 @@ from beedis import datadis, ENDPOINTS
 
 import settings
 from Datadis.datadis_utils import get_users, generate_input_tsv
-from datadis_gather_mr import DatadisMRJob
+from Datadis.datadis_gather_mr import DatadisMRJob
 from utils import decrypt, put_file_to_hdfs, remove_file, remove_file_from_hdfs, mongo_logger, \
     save_to_kafka, save_to_hbase
 

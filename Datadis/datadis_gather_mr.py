@@ -236,20 +236,26 @@ class DatadisMRJob(MRJob, ABC):
                                 raise GetDataException(f"{e}")
                             request_log.update({"data_gather": "success"})
                             df_consumption = pd.DataFrame(consumption)
+                            df_consumption.index = df_consumption['datetime']
+                            df_consumption.sort_index(inplace=True)
                             # Cast datetime64[ns] to timestamp (int64)
                             df_consumption['timestamp'] = df_consumption['datetime'].astype('int64') // 10**9
                             # get first and last time gathered
                             if device['types'][data_type]['data_ini']:
                                 device['types'][data_type]['data_ini'] = \
-                                    min(device['types'][data_type]['data_ini'], consumption[0]['datetime'])
+                                    min(device['types'][data_type]['data_ini'],
+                                        df_consumption.iloc[0].datetime.dt.tz_localize(None))
                             else:
-                                device['types'][data_type]['data_ini'] = consumption[0]['datetime']
+                                device['types'][data_type]['data_ini'] = \
+                                    df_consumption.iloc[0].datetime.dt.tz_localize(None)
 
                             if device['types'][data_type]['data_end']:
                                 device['types'][data_type]['data_end'] = \
-                                    max(device['types'][data_type]['data_end'], consumption[-1]['datetime'])
+                                    max(device['types'][data_type]['data_end'],
+                                        df_consumption.iloc[-1].datetime.dt.tz_localize(None))
                             else:
-                                device['types'][data_type]['data_end'] = consumption[-1]['datetime']
+                                device['types'][data_type]['data_end'] = \
+                                    df_consumption.iloc[-1].datetime.dt.tz_localize(None)
 
                             device['types'][data_type]['status'] = "yes"
                             save_datadis_data(df_consumption.to_dict('records'), credentials, data_type,

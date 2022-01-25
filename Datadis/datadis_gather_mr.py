@@ -76,22 +76,22 @@ data_types_dict = {
         "endpoint": ENDPOINTS.GET_CONSUMPTION,
         "params": ["cups", "distributor_code", "start_date", "end_date", "measurement_type", "point_type"]
     },
-    # "data_15m": {
-    #     "freq_rec": 1,
-    #     "measurement_type": "1",
-    #     "endpoint": ENDPOINTS.GET_CONSUMPTION,
-    #     "params": ["cups", "distributor_code", "start_date", "end_date", "measurement_type", "point_type"]
-    # },
-    # "max_power": {
-    #     "freq_rec": 6,
-    #     "endpoint": ENDPOINTS.GET_MAX_POWER,
-    #     "params": ["cups", "distributor_code", "start_date", "end_date"]
-    # },
-    # "contracts": {
-    #     "freq_rec": "static",
-    #     "endpoint": ENDPOINTS.GET_MAX_POWER,
-    #     "params": ["cups", "distributor_code", "start_date", "end_date"]
-    # }
+    "data_15m": {
+        "freq_rec": 1,
+        "measurement_type": "1",
+        "endpoint": ENDPOINTS.GET_CONSUMPTION,
+        "params": ["cups", "distributor_code", "start_date", "end_date", "measurement_type", "point_type"]
+    },
+    "max_power": {
+        "freq_rec": 6,
+        "endpoint": ENDPOINTS.GET_MAX_POWER,
+        "params": ["cups", "distributor_code", "start_date", "end_date"]
+    },
+    "contracts": {
+        "freq_rec": "static",
+        "endpoint": ENDPOINTS.GET_MAX_POWER,
+        "params": ["cups", "distributor_code", "start_date", "end_date"]
+    }
 }
 
 
@@ -135,7 +135,7 @@ class DatadisMRJob(MRJob, ABC):
             supplies = datadis.datadis_query(ENDPOINTS.GET_SUPPLIES)
             for supply in supplies:
                 supply.update({"nif": credentials['username']})
-            # save_datadis_data(supplies, credentials, "supplies", ["cups"], [("info", "all")], self.config, mongo_logger)
+            save_datadis_data(supplies, credentials, "supplies", ["cups"], [("info", "all")], self.config, mongo_logger)
             log_exported = mongo_logger.export_log()
             log_exported['log_id'] = str(log_exported['log_id'])
             supplies_by_reducer = 4
@@ -224,33 +224,33 @@ class DatadisMRJob(MRJob, ABC):
                             try:
                                 kwargs = parse_arguments(supply, type_params, date_ini, current_date)
                                 sys.stderr.write(f"\t\t\tRequest from {date_ini} to {current_date}\n")
-                                #consumption = datadis.datadis_query(type_params['endpoint'], **kwargs)
-                                # if not consumption:
-                                #     device['types'][data_type]['status'] = "no"
-                                #     raise Exception("No data could be found")
+                                consumption = datadis.datadis_query(type_params['endpoint'], **kwargs)
+                                if not consumption:
+                                    device['types'][data_type]['status'] = "no"
+                                    raise Exception("No data could be found")
                             except Exception as e:
                                 raise GetDataException(f"{e}")
                             request_log.update({"data_gather": "success"})
-                            # df_consumption = pd.DataFrame(consumption)
-                            # Cast datetime64[ns] to timestamp (int64)
-                            # df_consumption['timestamp'] = df_consumption['datetime'].astype('int64') // 10**9
-                            # get first and last time gathered
-                            # if device['types'][data_type]['data_ini']:
-                            #     device['types'][data_type]['data_ini'] = \
-                            #         min(device['types'][data_type]['data_ini'], consumption[0]['datetime'])
-                            # else:
-                            #     device['types'][data_type]['data_ini'] = consumption[0]['datetime']
-                            #
-                            # if device['types'][data_type]['data_end']:
-                            #     device['types'][data_type]['data_end'] = \
-                            #         max(device['types'][data_type]['data_end'], consumption[-1]['datetime'])
-                            # else:
-                            #     device['types'][data_type]['data_end'] = consumption[-1]['datetime']
+                            df_consumption = pd.DataFrame(consumption)
+                            Cast datetime64[ns] to timestamp (int64)
+                            df_consumption['timestamp'] = df_consumption['datetime'].astype('int64') // 10**9
+                            get first and last time gathered
+                            if device['types'][data_type]['data_ini']:
+                                device['types'][data_type]['data_ini'] = \
+                                    min(device['types'][data_type]['data_ini'], consumption[0]['datetime'])
+                            else:
+                                device['types'][data_type]['data_ini'] = consumption[0]['datetime']
 
-                            # device['types'][data_type]['status'] = "yes"
-                            # save_datadis_data(df_consumption.to_dict('records'), credentials, data_type,
-                            #                   ["cups", "timestamp"], [("info", "all")], self.config, mongo_logger)
-                            # request_log.update({"sent": "success"})
+                            if device['types'][data_type]['data_end']:
+                                device['types'][data_type]['data_end'] = \
+                                    max(device['types'][data_type]['data_end'], consumption[-1]['datetime'])
+                            else:
+                                device['types'][data_type]['data_end'] = consumption[-1]['datetime']
+
+                            device['types'][data_type]['status'] = "yes"
+                            save_datadis_data(df_consumption.to_dict('records'), credentials, data_type,
+                                              ["cups", "timestamp"], [("info", "all")], self.config, mongo_logger)
+                            request_log.update({"sent": "success"})
                             sys.stderr.write(f"\t\t\tRequest sent\n")
                             self.increment_counter('gathered', 'device', 1)
                             date_ini = current_date
@@ -260,18 +260,18 @@ class DatadisMRJob(MRJob, ABC):
                         try:
                             kwargs = parse_arguments(supply, type_params, None, None)
                             sys.stderr.write(f"\t\t\tRequest")
-                            #data = datadis.datadis_query(type_params['endpoint'], **kwargs)
-                            # if not data:
-                            #     device['types'][data_type]['status'] = "no"
-                            #     raise Exception("No data could be found")
+                            data = datadis.datadis_query(type_params['endpoint'], **kwargs)
+                            if not data:
+                                device['types'][data_type]['status'] = "no"
+                                raise Exception("No data could be found")
                         except Exception as e:
                             raise GetDataException(f"{e}")
                         request_log.update({"data_gather": "success"})
-                        # for d in data:
-                        #     d.update({"nif": credentials['username']})
+                        for d in data:
+                            d.update({"nif": credentials['username']})
                         device['types'][data_type]['status'] = "yes"
-                        # save_datadis_data(data.to_dict('records'), credentials, data_type,
-                        #                   ['cups', 'nif'], [("info", "all")], self.config, mongo_logger)
+                        save_datadis_data(data.to_dict('records'), credentials, data_type,
+                                          ['cups', 'nif'], [("info", "all")], self.config, mongo_logger)
                         sys.stderr.write(f"\t\t\tRequest sent")
                         self.increment_counter('gathered', 'device', 1)
                         request_log.update({"sent": "success"})

@@ -186,8 +186,8 @@ class DatadisMRJob(MRJob, ABC):
                 }
                 for t in data_types_dict:
                     device['types'][t] = {
-                        "data_ini": None,
-                        "data_end": None,
+                        "date_ini": None,
+                        "date_end": None,
                         "status": "OK",
                         "update": "YES"
                     }
@@ -217,8 +217,8 @@ class DatadisMRJob(MRJob, ABC):
                             sys.stderr.write(f"\t\tIgnoring because it is OK\n")
                             continue
                         date_end = datetime.today().date()
-                        if self.config['policy'] == "last" and device['data_end'] is not None:
-                            date_ini = device['data_end']
+                        if self.config['policy'] == "last" and device['types'][data_type]['date_end'] is not None:
+                            date_ini = device['types'][data_type]['date_end']
                         else:
                             date_ini = datetime.strptime(supply['validDateFrom'], '%Y/%m/%d').date()
                         sys.stderr.write(f"\t\tObtaining from {date_ini}\n")
@@ -257,12 +257,12 @@ class DatadisMRJob(MRJob, ABC):
                                 device['types'][data_type]['data_ini'] = \
                                     df_consumption.iloc[0].datetime.tz_localize(None)
 
-                            if device['types'][data_type]['data_end']:
-                                device['types'][data_type]['data_end'] = \
-                                    max(device['types'][data_type]['data_end'],
+                            if device['types'][data_type]['date_end']:
+                                device['types'][data_type]['date_end'] = \
+                                    max(device['types'][data_type]['date_end'],
                                         df_consumption.iloc[-1].datetime.tz_localize(None))
                             else:
-                                device['types'][data_type]['data_end'] = \
+                                device['types'][data_type]['date_end'] = \
                                     df_consumption.iloc[-1].datetime.tz_localize(None)
 
                             device['types'][data_type]['status'] = "OK"

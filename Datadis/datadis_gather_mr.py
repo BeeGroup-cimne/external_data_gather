@@ -162,125 +162,126 @@ class DatadisMRJob(MRJob, ABC):
     def reducer(self, key, values):
         # Loop supplies
         sys.stderr.write(f"Recieved: {key}, {[x['supply']['cups'] for x in values]}\n")
+        for info in values:
+            supply = info['supply']
+            credentials = info['credentials']
+            import_log = info['logger']
+            sys.stderr.write(f"Processing: {supply['cups']}\n")
+            import_log['log_id'] = bson.objectid.ObjectId(import_log['log_id'])
+            mongo_logger.import_log(import_log, "gather")
+            datadis_devices = \
+                mongo_logger.get_connection()[self.config['datasources']['datadis']['log_devices']]
+            # get the highest page document log
+            try:
+                device = datadis_devices.find({"_id": supply['cups']}).sort([("page", -1)]).limit(1)[0]
+            except IndexError:
+                device = None
+            if not device:
+                # if there is no log document create a new one
+                device = {
+                    "_id": supply['cups'],
+                    "page": 0,
+                    "types": {},
+                    "requests_log": []
+                }
+                for t in data_types_dict:
+                    device['types'][t] = {
+                        "data_ini": None,
+                        "data_end": None,
+                        "status": "yes"
+                    }
+            elif len(device['requests_log']) >= 100:
+                # if there is one but with more than 100 records, create a new one with higher page
+                device['page'] += 1
+                device['requests_log'] = []
 
-        # for info in values:
-        #     supply = info['supply']
-        #     credentials = info['credentials']
-        #     import_log = info['logger']
-        #     import_log['log_id'] = bson.objectid.ObjectId(import_log['log_id'])
-        #     mongo_logger.import_log(import_log, "gather")
-        #     datadis_devices = \
-        #         mongo_logger.get_connection()[self.config['datasources']['datadis']['log_devices']]
-        #     # get the highest page document log
-        #     try:
-        #         device = datadis_devices.find({"_id": supply['cups']}).sort([("page", -1)]).limit(1)[0]
-        #     except IndexError:
-        #         device = None
-        #     if not device:
-        #         # if there is no log document create a new one
-        #         device = {
-        #             "_id": supply['cups'],
-        #             "page": 0,
-        #             "types": {},
-        #             "requests_log": []
-        #         }
-        #         for t in data_types_dict:
-        #             device['types'][t] = {
-        #                 "data_ini": None,
-        #                 "data_end": None,
-        #                 "status": "yes"
-        #             }
-        #     elif len(device['requests_log']) >= 100:
-        #         # if there is one but with more than 100 records, create a new one with higher page
-        #         device['page'] += 1
-        #         device['requests_log'] = []
-        #
-        #     request_log = {}
-        #     try:
-        #         login(username=credentials['username'], password=credentials['password'])
-        #         request_log.update({"login": "success"})
-        #         for data_type, type_params in data_types_dict.items():
-        #             mongo_logger.log(f"obtaining {data_type} data from datadis")
-        #             if type_params['freq_rec'] != "static":
-        #                 mongo_logger.log(f"the policy is {self.config['policy']}")
-        #                 if self.config['policy'] == "last" and device['types'][data_type]['status'] == "no":
-        #                     continue
-        #
-        #                 date_end = datetime.today().date()
-        #                 if self.config['policy'] == "last" and device['data_end'] is not None:
-        #                     date_ini = device['data_end']
-        #                 else:
-        #                     date_ini = datetime.strptime(supply['validDateFrom'], '%Y/%m/%d').date()
-        #
-        #                 # Obtain data
-        #                 while date_ini < date_end:
-        #                     current_date = min(date_end, date_ini + relativedelta(months=type_params['freq_rec']))
-        #                     request_log.update({"date_from": datetime.combine(date_ini, datetime.min.time()),
-        #                                         "date_to": datetime.combine(current_date, datetime.min.time()),
-        #                                         "data_type": data_type})
-        #                     try:
-        #                         kwargs = parse_arguments(supply, type_params, date_ini, current_date)
-        #                         consumption = datadis.datadis_query(type_params['endpoint'], **kwargs)
-        #                         if not consumption:
-        #                             device['types'][data_type]['status'] = "no"
-        #                             raise Exception("No data could be found")
-        #                     except Exception as e:
-        #                         raise GetDataException(f"{e}")
-        #                     request_log.update({"data_gather": "success"})
-        #                     df_consumption = pd.DataFrame(consumption)
-        #                     # Cast datetime64[ns] to timestamp (int64)
-        #                     df_consumption['timestamp'] = df_consumption['datetime'].astype('int64') // 10**9
-        #                     # get first and last time gathered
-        #                     if device['types'][data_type]['data_ini']:
-        #                         device['types'][data_type]['data_ini'] = \
-        #                             min(device['types'][data_type]['data_ini'], consumption[0]['datetime'])
-        #                     else:
-        #                         device['types'][data_type]['data_ini'] = consumption[0]['datetime']
-        #
-        #                     if device['types'][data_type]['data_end']:
-        #                         device['types'][data_type]['data_end'] = \
-        #                             max(device['types'][data_type]['data_end'], consumption[-1]['datetime'])
-        #                     else:
-        #                         device['types'][data_type]['data_end'] = consumption[-1]['datetime']
-        #
-        #                     device['types'][data_type]['status'] = "yes"
-        #                     save_datadis_data(df_consumption.to_dict('records'), credentials, data_type,
-        #                                       ["cups", "timestamp"], [("info", "all")], self.config, mongo_logger)
-        #                     request_log.update({"sent": "success"})
-        #                     self.increment_counter('gathered', 'device', 1)
-        #
-        #             else:
-        #                 request_log.update({"data_type": data_type})
-        #                 try:
-        #                     kwargs = parse_arguments(supply, type_params, None, None)
-        #                     data = datadis.datadis_query(type_params['endpoint'], **kwargs)
-        #                     if not data:
-        #                         device['types'][data_type]['status'] = "no"
-        #                         raise Exception("No data could be found")
-        #                 except Exception as e:
-        #                     raise GetDataException(f"{e}")
-        #                 request_log.update({"data_gather": "success"})
-        #                 for d in data:
-        #                     d.update({"nif": credentials['username']})
-        #                 device['types'][data_type]['status'] = "yes"
-        #                 save_datadis_data(data.to_dict('records'), credentials, data_type,
-        #                                   ['cups', 'nif'], [("info", "all")], self.config, mongo_logger)
-        #                 self.increment_counter('gathered', 'device', 1)
-        #                 request_log.update({"sent": "success"})
-        #
-        #     except LoginException as e:
-        #         request_log.update({"login": "fail"})
-        #         mongo_logger.log(f"Error in login to datadis for user {credentials['username']}: {e}")
-        #     except GetDataException as e:
-        #         request_log.update({"data_gather": "fail"})
-        #         mongo_logger.log(f"Error gathering data from datadis for user {credentials['username']}: {e}")
-        #     except Exception as e:
-        #         mongo_logger.log(f"Received and exception: {e}")
-        #
-        #     device['requests_log'].insert(0, request_log)
-        #     datadis_devices.replace_one({"_id": supply['cups'], "page": device['page']}, device,
-        #                                 upsert=True)
-        #     self.increment_counter('gathered', 'device', 1)
+            request_log = {}
+            try:
+                login(username=credentials['username'], password=credentials['password'])
+                request_log.update({"login": "success"})
+                for data_type, type_params in data_types_dict.items():
+                    sys.stderr.write(f"\tType: {data_type}\n")
+                    # mongo_logger.log(f"obtaining {data_type} data from datadis")
+                    # if type_params['freq_rec'] != "static":
+                    #     mongo_logger.log(f"the policy is {self.config['policy']}")
+                    #     if self.config['policy'] == "last" and device['types'][data_type]['status'] == "no":
+                    #         continue
+                    #
+                    #     date_end = datetime.today().date()
+                    #     if self.config['policy'] == "last" and device['data_end'] is not None:
+                    #         date_ini = device['data_end']
+                    #     else:
+                    #         date_ini = datetime.strptime(supply['validDateFrom'], '%Y/%m/%d').date()
+                    #
+                    #     # Obtain data
+                    #     while date_ini < date_end:
+                    #         current_date = min(date_end, date_ini + relativedelta(months=type_params['freq_rec']))
+                    #         request_log.update({"date_from": datetime.combine(date_ini, datetime.min.time()),
+                    #                             "date_to": datetime.combine(current_date, datetime.min.time()),
+                    #                             "data_type": data_type})
+                    #         try:
+                    #             kwargs = parse_arguments(supply, type_params, date_ini, current_date)
+                    #             consumption = datadis.datadis_query(type_params['endpoint'], **kwargs)
+                    #             if not consumption:
+                    #                 device['types'][data_type]['status'] = "no"
+                    #                 raise Exception("No data could be found")
+                    #         except Exception as e:
+                    #             raise GetDataException(f"{e}")
+                    #         request_log.update({"data_gather": "success"})
+                    #         df_consumption = pd.DataFrame(consumption)
+                    #         # Cast datetime64[ns] to timestamp (int64)
+                    #         df_consumption['timestamp'] = df_consumption['datetime'].astype('int64') // 10**9
+                    #         # get first and last time gathered
+                    #         if device['types'][data_type]['data_ini']:
+                    #             device['types'][data_type]['data_ini'] = \
+                    #                 min(device['types'][data_type]['data_ini'], consumption[0]['datetime'])
+                    #         else:
+                    #             device['types'][data_type]['data_ini'] = consumption[0]['datetime']
+                    #
+                    #         if device['types'][data_type]['data_end']:
+                    #             device['types'][data_type]['data_end'] = \
+                    #                 max(device['types'][data_type]['data_end'], consumption[-1]['datetime'])
+                    #         else:
+                    #             device['types'][data_type]['data_end'] = consumption[-1]['datetime']
+                    #
+                    #         device['types'][data_type]['status'] = "yes"
+                    #         save_datadis_data(df_consumption.to_dict('records'), credentials, data_type,
+                    #                           ["cups", "timestamp"], [("info", "all")], self.config, mongo_logger)
+                    #         request_log.update({"sent": "success"})
+                    #         self.increment_counter('gathered', 'device', 1)
+                    #
+                    # else:
+                    #     request_log.update({"data_type": data_type})
+                    #     try:
+                    #         kwargs = parse_arguments(supply, type_params, None, None)
+                    #         data = datadis.datadis_query(type_params['endpoint'], **kwargs)
+                    #         if not data:
+                    #             device['types'][data_type]['status'] = "no"
+                    #             raise Exception("No data could be found")
+                    #     except Exception as e:
+                    #         raise GetDataException(f"{e}")
+                    #     request_log.update({"data_gather": "success"})
+                    #     for d in data:
+                    #         d.update({"nif": credentials['username']})
+                    #     device['types'][data_type]['status'] = "yes"
+                    #     save_datadis_data(data.to_dict('records'), credentials, data_type,
+                    #                       ['cups', 'nif'], [("info", "all")], self.config, mongo_logger)
+                    #     self.increment_counter('gathered', 'device', 1)
+                    #     request_log.update({"sent": "success"})
+
+            except LoginException as e:
+                request_log.update({"login": "fail"})
+                mongo_logger.log(f"Error in login to datadis for user {credentials['username']}: {e}")
+            except GetDataException as e:
+                request_log.update({"data_gather": "fail"})
+                mongo_logger.log(f"Error gathering data from datadis for user {credentials['username']}: {e}")
+            except Exception as e:
+                mongo_logger.log(f"Received and exception: {e}")
+
+            device['requests_log'].insert(0, request_log)
+            datadis_devices.replace_one({"_id": supply['cups'], "page": device['page']}, device,
+                                        upsert=True)
+            self.increment_counter('gathered', 'device', 1)
 
 
 if __name__ == '__main__':

@@ -272,12 +272,15 @@ class DatadisMRJob(MRJob, ABC):
                     #     request_log.update({"sent": "success"})
 
             except LoginException as e:
+                sys.stderr.write(f"Error in login to datadis for user {credentials['username']}: {e}")
                 request_log.update({"login": "fail"})
                 mongo_logger.log(f"Error in login to datadis for user {credentials['username']}: {e}")
             except GetDataException as e:
+                sys.stderr.write(f"Error gathering data from datadis for user {credentials['username']}: {e}")
                 request_log.update({"data_gather": "fail"})
                 mongo_logger.log(f"Error gathering data from datadis for user {credentials['username']}: {e}")
             except Exception as e:
+                sys.stderr.write(f"Received and exception: {e}")
                 mongo_logger.log(f"Received and exception: {e}")
 
             device['requests_log'].insert(0, request_log)

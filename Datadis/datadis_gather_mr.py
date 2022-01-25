@@ -274,7 +274,7 @@ class DatadisMRJob(MRJob, ABC):
                         for d in data:
                             d.update({"nif": credentials['username']})
                         device['types'][data_type]['status'] = "yes"
-                        save_datadis_data(data.to_dict('records'), credentials, data_type,
+                        save_datadis_data(data, credentials, data_type,
                                           ['cups', 'nif'], [("info", "all")], self.config, mongo_logger)
                         sys.stderr.write(f"\t\t\tRequest sent\n")
                         self.increment_counter('gathered', 'device', 1)

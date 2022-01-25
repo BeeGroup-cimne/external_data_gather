@@ -88,8 +88,8 @@ data_types_dict = {
     },
     "contracts": {
         "freq_rec": "static",
-        "endpoint": ENDPOINTS.GET_MAX_POWER,
-        "params": ["cups", "distributor_code", "start_date", "end_date"]
+        "endpoint": ENDPOINTS.GET_CONTRACT,
+        "params": ["cups", "distributor_code"]
     }
 }
 

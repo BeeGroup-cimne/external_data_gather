@@ -122,7 +122,7 @@ class DatadisMRJob(MRJob, ABC):
         self.__read_config__()
 
     def mapper(self, _, line):
-        sys.stderr.write(f"Recieved: {line}")
+        sys.stderr.write(f"Recieved: {line}\n")
         credentials = {k: v for k, v in zip(["username", "password", "user", "namespace"], line.split('\t'))}
         mongo_logger.create(self.config['mongo_db'], self.config['datasources']['datadis']['log'], 'gather',
                             user=credentials["user"], datasource_user=credentials["username"])
@@ -142,7 +142,7 @@ class DatadisMRJob(MRJob, ABC):
             id_key = 0
             sys.stderr.write(f"Obtained: {len(supplies)} supplies\n")
             for i, supply in enumerate(supplies):
-                key = credentials['username'] + id_key
+                key = f"{credentials['username']}~{id_key}"
                 value = {"supply": supply, "credentials": credentials, "logger": log_exported}
                 if i % supplies_by_reducer == 0:
                     id_key += 1

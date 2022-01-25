@@ -110,11 +110,10 @@ def __get_h_table__(hbase, table_name, cf=None):
     return hbase.table(table_name)
 
 
-def save_to_hbase(documents, h_table_name, hbase_connection, cf_mapping, row_fields=None,
-                  version=int(time.time()), batch_size=1000):
+def save_to_hbase(documents, h_table_name, hbase_connection, cf_mapping, row_fields=None, batch_size=1000):
     hbase = happybase.Connection(**hbase_connection)
     table = __get_h_table__(hbase, h_table_name, {cf: {} for cf, _ in cf_mapping})
-    h_batch = table.batch(timestamp=version, batch_size=batch_size)
+    h_batch = table.batch(batch_size=batch_size)
     row_auto = 0
     uid = uuid.uuid4()
     for d in documents:

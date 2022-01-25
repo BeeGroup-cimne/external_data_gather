@@ -237,6 +237,8 @@ class DatadisMRJob(MRJob, ABC):
                             save_datadis_data(df_consumption.to_dict('records'), credentials, data_type,
                                               ["cups", "timestamp"], [("info", "all")], self.config, mongo_logger)
                             request_log.update({"sent": "success"})
+                            self.increment_counter('gathered', 'device', 1)
+
                     else:
                         request_log.update({"data_type": data_type})
                         try:
@@ -253,6 +255,7 @@ class DatadisMRJob(MRJob, ABC):
                         device['types'][data_type]['status'] = "yes"
                         save_datadis_data(data.to_dict('records'), credentials, data_type,
                                           ['cups', 'nif'], [("info", "all")], self.config, mongo_logger)
+                        self.increment_counter('gathered', 'device', 1)
                         request_log.update({"sent": "success"})
 
             except LoginException as e:
@@ -267,6 +270,7 @@ class DatadisMRJob(MRJob, ABC):
             device['requests_log'].insert(0, request_log)
             datadis_devices.replace_one({"_id": supply['cups'], "page": device['page']}, device,
                                         upsert=True)
+            self.increment_counter('gathered', 'device', 1)
 
 
 if __name__ == '__main__':

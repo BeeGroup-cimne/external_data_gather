@@ -161,7 +161,7 @@ class DatadisMRJob(MRJob, ABC):
 
     def reducer(self, key, values):
         # Loop supplies
-        sys.stderr.write(f"Recieved: {key}, {[x['cups'] for x in values]}\n")
+        sys.stderr.write(f"Recieved: {key}, {[x['supply']['cups'] for x in values]}\n")
 
         # for info in values:
         #     supply = info['supply']

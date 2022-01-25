@@ -76,22 +76,22 @@ data_types_dict = {
         "endpoint": ENDPOINTS.GET_CONSUMPTION,
         "params": ["cups", "distributor_code", "start_date", "end_date", "measurement_type", "point_type"]
     },
-    "data_15m": {
-        "freq_rec": 1,
-        "measurement_type": "1",
-        "endpoint": ENDPOINTS.GET_CONSUMPTION,
-        "params": ["cups", "distributor_code", "start_date", "end_date", "measurement_type", "point_type"]
-    },
-    "max_power": {
-        "freq_rec": 6,
-        "endpoint": ENDPOINTS.GET_MAX_POWER,
-        "params": ["cups", "distributor_code", "start_date", "end_date"]
-    },
-    "contracts": {
-        "freq_rec": "static",
-        "endpoint": ENDPOINTS.GET_MAX_POWER,
-        "params": ["cups", "distributor_code", "start_date", "end_date"]
-    }
+    # "data_15m": {
+    #     "freq_rec": 1,
+    #     "measurement_type": "1",
+    #     "endpoint": ENDPOINTS.GET_CONSUMPTION,
+    #     "params": ["cups", "distributor_code", "start_date", "end_date", "measurement_type", "point_type"]
+    # },
+    # "max_power": {
+    #     "freq_rec": 6,
+    #     "endpoint": ENDPOINTS.GET_MAX_POWER,
+    #     "params": ["cups", "distributor_code", "start_date", "end_date"]
+    # },
+    # "contracts": {
+    #     "freq_rec": "static",
+    #     "endpoint": ENDPOINTS.GET_MAX_POWER,
+    #     "params": ["cups", "distributor_code", "start_date", "end_date"]
+    # }
 }
 
 
@@ -206,7 +206,7 @@ class DatadisMRJob(MRJob, ABC):
                     if type_params['freq_rec'] != "static":
                         mongo_logger.log(f"the policy is {self.config['policy']}")
                         if self.config['policy'] == "last" and device['types'][data_type]['status'] == "no":
-                            sys.stderr.write(f"\t\tIgnoring")
+                            sys.stderr.write(f"\t\tIgnoring\n")
                             continue
 
                         date_end = datetime.today().date()
@@ -214,7 +214,7 @@ class DatadisMRJob(MRJob, ABC):
                             date_ini = device['data_end']
                         else:
                             date_ini = datetime.strptime(supply['validDateFrom'], '%Y/%m/%d').date()
-                        sys.stderr.write(f"\t\tObtaining from {date_ini}")
+                        sys.stderr.write(f"\t\tObtaining from {date_ini}\n")
                         # Obtain data
                         while date_ini < date_end:
                             current_date = min(date_end, date_ini + relativedelta(months=type_params['freq_rec']))
@@ -223,7 +223,7 @@ class DatadisMRJob(MRJob, ABC):
                                                 "data_type": data_type})
                             try:
                                 kwargs = parse_arguments(supply, type_params, date_ini, current_date)
-                                sys.stderr.write(f"\t\t\tRequest from {date_ini} to {current_date}")
+                                sys.stderr.write(f"\t\t\tRequest from {date_ini} to {current_date}\n")
                                 #consumption = datadis.datadis_query(type_params['endpoint'], **kwargs)
                                 # if not consumption:
                                 #     device['types'][data_type]['status'] = "no"
@@ -251,7 +251,7 @@ class DatadisMRJob(MRJob, ABC):
                             # save_datadis_data(df_consumption.to_dict('records'), credentials, data_type,
                             #                   ["cups", "timestamp"], [("info", "all")], self.config, mongo_logger)
                             # request_log.update({"sent": "success"})
-                            sys.stderr.write(f"\t\t\tRequest sent")
+                            sys.stderr.write(f"\t\t\tRequest sent\n")
                             self.increment_counter('gathered', 'device', 1)
                             date_ini = current_date
 

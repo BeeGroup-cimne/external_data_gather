@@ -199,7 +199,12 @@ class DatadisMRJob(MRJob, ABC):
             try:
                 login(username=credentials['username'], password=credentials['password'])
                 request_log.update({"login": "success"})
-                for data_type, type_params in data_types_dict.items():
+            except LoginException as e:
+                sys.stderr.write(f"Error in login to datadis for user {credentials['username']}: {e}\n")
+                request_log.update({"login": "fail"})
+                mongo_logger.log(f"Error in login to datadis for user {credentials['username']}: {e}")
+            for data_type, type_params in data_types_dict.items():
+                try:
                     sys.stderr.write(f"\tType: {data_type}\n")
                     mongo_logger.log(f"obtaining {data_type} data from datadis")
                     if type_params['freq_rec'] != "static":
@@ -258,7 +263,7 @@ class DatadisMRJob(MRJob, ABC):
                         request_log.update({"data_type": data_type})
                         try:
                             kwargs = parse_arguments(supply, type_params, None, None)
-                            sys.stderr.write(f"\t\t\tRequest")
+                            sys.stderr.write(f"\t\t\tRequest\n")
                             data = datadis.datadis_query(type_params['endpoint'], **kwargs)
                             if not data:
                                 device['types'][data_type]['status'] = "no"
@@ -271,21 +276,17 @@ class DatadisMRJob(MRJob, ABC):
                         device['types'][data_type]['status'] = "yes"
                         save_datadis_data(data.to_dict('records'), credentials, data_type,
                                           ['cups', 'nif'], [("info", "all")], self.config, mongo_logger)
-                        sys.stderr.write(f"\t\t\tRequest sent")
+                        sys.stderr.write(f"\t\t\tRequest sent\n")
                         self.increment_counter('gathered', 'device', 1)
                         request_log.update({"sent": "success"})
 
-            except LoginException as e:
-                sys.stderr.write(f"Error in login to datadis for user {credentials['username']}: {e}")
-                request_log.update({"login": "fail"})
-                mongo_logger.log(f"Error in login to datadis for user {credentials['username']}: {e}")
-            except GetDataException as e:
-                sys.stderr.write(f"Error gathering data from datadis for user {credentials['username']}: {e}")
-                request_log.update({"data_gather": "fail"})
-                mongo_logger.log(f"Error gathering data from datadis for user {credentials['username']}: {e}")
-            except Exception as e:
-                sys.stderr.write(f"Received and exception: {e}")
-                mongo_logger.log(f"Received and exception: {e}")
+                except GetDataException as e:
+                    sys.stderr.write(f"Error gathering data from datadis for user {credentials['username']}: {e}\n")
+                    request_log.update({"data_gather": "fail"})
+                    mongo_logger.log(f"Error gathering data from datadis for user {credentials['username']}: {e}")
+                except Exception as e:
+                    sys.stderr.write(f"Received and exception: {e}\n")
+                    mongo_logger.log(f"Received and exception: {e}")
 
             device['requests_log'].insert(0, request_log)
             datadis_devices.replace_one({"_id": supply['cups'], "page": device['page']}, device,

@@ -244,18 +244,18 @@ class DatadisMRJob(MRJob, ABC):
                             if device['types'][data_type]['data_ini']:
                                 device['types'][data_type]['data_ini'] = \
                                     min(device['types'][data_type]['data_ini'],
-                                        df_consumption.iloc[0].datetime.dt.tz_localize(None))
+                                        df_consumption.iloc[0].datetime.tz_localize(None))
                             else:
                                 device['types'][data_type]['data_ini'] = \
-                                    df_consumption.iloc[0].datetime.dt.tz_localize(None)
+                                    df_consumption.iloc[0].datetime.tz_localize(None)
 
                             if device['types'][data_type]['data_end']:
                                 device['types'][data_type]['data_end'] = \
                                     max(device['types'][data_type]['data_end'],
-                                        df_consumption.iloc[-1].datetime.dt.tz_localize(None))
+                                        df_consumption.iloc[-1].datetime.tz_localize(None))
                             else:
                                 device['types'][data_type]['data_end'] = \
-                                    df_consumption.iloc[-1].datetime.dt.tz_localize(None)
+                                    df_consumption.iloc[-1].datetime.tz_localize(None)
 
                             device['types'][data_type]['status'] = "yes"
                             save_datadis_data(df_consumption.to_dict('records'), credentials, data_type,

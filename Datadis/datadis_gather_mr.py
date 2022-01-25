@@ -188,7 +188,8 @@ class DatadisMRJob(MRJob, ABC):
                     device['types'][t] = {
                         "data_ini": None,
                         "data_end": None,
-                        "status": "yes"
+                        "status": "OK",
+                        "update": "YES"
                     }
             elif len(device['requests_log']) >= 100:
                 # if there is one but with more than 100 records, create a new one with higher page
@@ -209,10 +210,12 @@ class DatadisMRJob(MRJob, ABC):
                     mongo_logger.log(f"obtaining {data_type} data from datadis")
                     if type_params['freq_rec'] != "static":
                         mongo_logger.log(f"the policy is {self.config['policy']}")
-                        if self.config['policy'] == "last" and device['types'][data_type]['status'] == "no":
-                            sys.stderr.write(f"\t\tIgnoring\n")
+                        if self.config['policy'] == "last" and device['types'][data_type]['update'] == "NO":
+                            sys.stderr.write(f"\t\tIgnoring because it is failed\n")
                             continue
-
+                        if self.config['policy'] == "repair" and device['types'][data_type]['status'] == "OK":
+                            sys.stderr.write(f"\t\tIgnoring because it is OK\n")
+                            continue
                         date_end = datetime.today().date()
                         if self.config['policy'] == "last" and device['data_end'] is not None:
                             date_ini = device['data_end']
@@ -230,10 +233,15 @@ class DatadisMRJob(MRJob, ABC):
                                 sys.stderr.write(f"\t\t\tRequest from {date_ini} to {current_date}\n")
                                 consumption = datadis.datadis_query(type_params['endpoint'], **kwargs)
                                 if not consumption:
-                                    device['types'][data_type]['status'] = "no"
                                     raise Exception("No data could be found")
                             except Exception as e:
-                                raise GetDataException(f"{e}")
+                                device['types'][data_type]['update'] = "NO"
+                                device['types'][data_type]['status'] = "FAIL"
+                                sys.stderr.write(
+                                    f"Error gathering data from datadis for user {credentials['username']}: {e}\n")
+                                mongo_logger.log(
+                                    f"Error gathering data from datadis for user {credentials['username']}: {e}")
+                                continue
                             request_log.update({"data_gather": "success"})
                             df_consumption = pd.DataFrame(consumption)
                             df_consumption.index = df_consumption['datetime']
@@ -257,14 +265,13 @@ class DatadisMRJob(MRJob, ABC):
                                 device['types'][data_type]['data_end'] = \
                                     df_consumption.iloc[-1].datetime.tz_localize(None)
 
-                            device['types'][data_type]['status'] = "yes"
+                            device['types'][data_type]['status'] = "OK"
                             save_datadis_data(df_consumption.to_dict('records'), credentials, data_type,
                                               ["cups", "timestamp"], [("info", "all")], self.config, mongo_logger)
                             request_log.update({"sent": "success"})
                             sys.stderr.write(f"\t\t\tRequest sent\n")
                             self.increment_counter('gathered', 'device', 1)
                             date_ini = current_date
-
                     else:
                         request_log.update({"data_type": data_type})
                         try:
@@ -272,24 +279,20 @@ class DatadisMRJob(MRJob, ABC):
                             sys.stderr.write(f"\t\tObtaining\n")
                             data = datadis.datadis_query(type_params['endpoint'], **kwargs)
                             if not data:
-                                device['types'][data_type]['status'] = "no"
+                                device['types'][data_type]['status'] = "FAIL"
                                 raise Exception("No data could be found")
                         except Exception as e:
                             raise GetDataException(f"{e}")
                         request_log.update({"data_gather": "success"})
                         for d in data:
                             d.update({"nif": credentials['username']})
-                        device['types'][data_type]['status'] = "yes"
+                        device['types'][data_type]['status'] = "OK"
                         save_datadis_data(data, credentials, data_type,
                                           ['cups', 'nif'], [("info", "all")], self.config, mongo_logger)
                         sys.stderr.write(f"\t\t\tRequest sent\n")
                         self.increment_counter('gathered', 'device', 1)
                         request_log.update({"sent": "success"})
 
-                except GetDataException as e:
-                    sys.stderr.write(f"Error gathering data from datadis for user {credentials['username']}: {e}\n")
-                    request_log.update({"data_gather": "fail"})
-                    mongo_logger.log(f"Error gathering data from datadis for user {credentials['username']}: {e}")
                 except Exception as e:
                     sys.stderr.write(f"Received and exception: {e}\n")
                     mongo_logger.log(f"Received and exception: {e}")

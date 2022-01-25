@@ -38,7 +38,7 @@ if __name__ == '__main__':
                 kafka_message = {
                     "namespace": args.namespace,
                     "user": args.user,
-                    "collection_type": "building",
+                    "collection_type": "buildings",
                     "source": "gpg",
                     "row_keys": ["Num_Ens_Inventari"],
                     "logger": mongo_logger.export_log(),
@@ -55,7 +55,7 @@ if __name__ == '__main__':
     elif args.store == "h":
         mongo_logger.log(f"saving to hbase")
         try:
-            h_table_name = f"{config['datasources']['GPG']['hbase_table']}_building_{args.user}"
+            h_table_name = f"{config['datasources']['GPG']['hbase_table']}_buildings_{args.user}"
             save_to_hbase(gpg_list, h_table_name, config['hbase_imported_data'], [("info", "all")],
                           row_fields=["Num_Ens_Inventari"])
             mongo_logger.log(f"successfully saved to hbase")

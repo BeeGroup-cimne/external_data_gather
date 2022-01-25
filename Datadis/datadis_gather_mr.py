@@ -217,6 +217,7 @@ class DatadisMRJob(MRJob, ABC):
                             sys.stderr.write(f"\t\tIgnoring because it is OK\n")
                             continue
                         date_end = datetime.today().date()
+                        sys.stderr.write(f"\t\t{device}\n")
                         if self.config['policy'] == "last" and device['types'][data_type]['date_end'] is not None:
                             date_ini = device['types'][data_type]['date_end']
                         else:

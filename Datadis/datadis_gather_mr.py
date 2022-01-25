@@ -26,8 +26,6 @@ def login(username, password):
     try:
         datadis.connection(username=username, password=password, timeout=100)
     except Exception as e:
-        sys.stderr.write(f"{e}\n")
-        sys.stderr.write(f"{username}\n")
         raise LoginException(f"{e}")
 
 
@@ -124,6 +122,7 @@ class DatadisMRJob(MRJob, ABC):
         self.__read_config__()
 
     def mapper(self, _, line):
+        sys.stderr.write(f"Recieved: {line}")
         credentials = {k: v for k, v in zip(["username", "password", "user", "namespace"], line.split('\t'))}
         mongo_logger.create(self.config['mongo_db'], self.config['datasources']['datadis']['log'], 'gather',
                             user=credentials["user"], datasource_user=credentials["username"])
@@ -141,6 +140,7 @@ class DatadisMRJob(MRJob, ABC):
             log_exported['log_id'] = str(log_exported['log_id'])
             supplies_by_reducer = 4
             id_key = 0
+            sys.stderr.write(f"Obtained: {len(supplies)} supplies\n")
             for i, supply in enumerate(supplies):
                 key = credentials['username'] + id_key
                 value = {"supply": supply, "credentials": credentials, "logger": log_exported}
@@ -150,8 +150,10 @@ class DatadisMRJob(MRJob, ABC):
                 yield key, value
 
         except LoginException as e:
+            sys.stderr.write(f"Error in login to datadis for user {credentials['username']}: {e}")
             mongo_logger.log(f"Error in login to datadis for user {credentials['username']}: {e}")
         except Exception as e:
+            sys.stderr.write(f"Received and exception: {e}")
             mongo_logger.log(f"Received and exception: {e}")
 
     def reducer_init(self):

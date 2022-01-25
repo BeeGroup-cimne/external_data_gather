@@ -7,7 +7,6 @@ from abc import ABC
 
 import pandas as pd
 from mrjob.job import MRJob
-from pytz import utc
 
 from utils import save_to_hbase, mongo_logger, save_to_kafka
 from beedis import ENDPOINTS, datadis
@@ -232,9 +231,9 @@ class DatadisMRJob(MRJob, ABC):
                                 raise GetDataException(f"{e}")
                             request_log.update({"data_gather": "success"})
                             df_consumption = pd.DataFrame(consumption)
-                            Cast datetime64[ns] to timestamp (int64)
+                            # Cast datetime64[ns] to timestamp (int64)
                             df_consumption['timestamp'] = df_consumption['datetime'].astype('int64') // 10**9
-                            get first and last time gathered
+                            # get first and last time gathered
                             if device['types'][data_type]['data_ini']:
                                 device['types'][data_type]['data_ini'] = \
                                     min(device['types'][data_type]['data_ini'], consumption[0]['datetime'])

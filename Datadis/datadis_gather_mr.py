@@ -163,7 +163,7 @@ class DatadisMRJob(MRJob, ABC):
         # Loop supplies
         sys.stderr.write(f"Recieved: {key}, {[x['supply']['cups'] for x in values]}\n")
         sys.stderr.write(f"TEST\n")
-
+        sys.stderr.write(f"Recieved: {values}\n")
         for info in values:
             supply = info['supply']
             credentials = info['credentials']

@@ -81,16 +81,16 @@ data_types_dict = {
         "endpoint": ENDPOINTS.GET_CONSUMPTION,
         "params": ["cups", "distributor_code", "start_date", "end_date", "measurement_type", "point_type"]
     },
-    "max_power": {
-        "freq_rec": 6,
-        "endpoint": ENDPOINTS.GET_MAX_POWER,
-        "params": ["cups", "distributor_code", "start_date", "end_date"]
-    },
-    "contracts": {
-        "freq_rec": "static",
-        "endpoint": ENDPOINTS.GET_CONTRACT,
-        "params": ["cups", "distributor_code"]
-    }
+    # "max_power": {
+    #     "freq_rec": 6,
+    #     "endpoint": ENDPOINTS.GET_MAX_POWER,
+    #     "params": ["cups", "distributor_code", "start_date", "end_date"]
+    # },
+    # "contracts": {
+    #     "freq_rec": "static",
+    #     "endpoint": ENDPOINTS.GET_CONTRACT,
+    #     "params": ["cups", "distributor_code"]
+    # }
 }
 
 
@@ -269,7 +269,7 @@ class DatadisMRJob(MRJob, ABC):
                         request_log.update({"data_type": data_type})
                         try:
                             kwargs = parse_arguments(supply, type_params, None, None)
-                            sys.stderr.write(f"\t\t\tRequest\n")
+                            sys.stderr.write(f"\t\tObtaining\n")
                             data = datadis.datadis_query(type_params['endpoint'], **kwargs)
                             if not data:
                                 device['types'][data_type]['status'] = "no"

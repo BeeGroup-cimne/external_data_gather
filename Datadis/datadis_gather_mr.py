@@ -253,6 +253,7 @@ class DatadisMRJob(MRJob, ABC):
                             # request_log.update({"sent": "success"})
                             sys.stderr.write(f"\t\t\tRequest sent")
                             self.increment_counter('gathered', 'device', 1)
+                            date_ini = current_date
 
                     else:
                         request_log.update({"data_type": data_type})

@@ -88,9 +88,11 @@ data_types_dict = {
         "elems_in_day": 96,
     },
     # "max_power": {
-    #     "freq_rec": 6,
+    #     "type_data": "timeseries",
+    #     "freq_rec": relativedelta(months=6),
     #     "endpoint": ENDPOINTS.GET_MAX_POWER,
     #     "params": ["cups", "distributor_code", "start_date", "end_date"]
+    #     "elems_in_day": 1,
     # },
     # "contracts": {
     #     "freq_rec": "static",

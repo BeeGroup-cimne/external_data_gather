@@ -3,7 +3,7 @@ bs4==0.0.1
 certifi==2020.12.5
 chardet==4.0.0
 cycler==0.11.0
-datadis @ git+https://github.com/BeeGroup-cimne/beedis@v1.0.1
+datadis @ git+https://github.com/BeeGroup-cimne/beedis@v1.0.2
 et-xmlfile==1.1.0
 fonttools==4.28.5
 future==0.18.2

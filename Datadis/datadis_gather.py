@@ -78,7 +78,7 @@ def get_timeseries_data(store, policy, config):
 
     # Get Users to generate the MR input file
     users = get_users(config['neo4j'])
-    local_input = generate_input_tsv(config, users)
+    local_input = generate_input_tsv(config, users[:2])
     input_mr = put_file_to_hdfs(source_file_path=local_input, destination_file_path='/tmp/datadis_tmp/')
     remove_file(local_input)
 
@@ -94,7 +94,7 @@ def get_timeseries_data(store, policy, config):
         '--jobconf', f'mapreduce.map.env={MOUNTS},{IMAGE},{RUNTYPE}',
         '--jobconf', f'mapreduce.reduce.env={MOUNTS},{IMAGE},{RUNTYPE}',
         '--jobconf', f"mapreduce.job.name=datadis_import",
-        '--jobconf', f'mapreduce.job.reduces=2'
+        '--jobconf', f'mapreduce.job.reduces=8'
     ])
     try:
         with datadis_job.make_runner() as runner:

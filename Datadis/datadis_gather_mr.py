@@ -15,6 +15,7 @@ from dateutil.relativedelta import relativedelta
 
 TZ = pytz.timezone("Europe/Madrid")
 
+
 class LoginException(Exception):
     pass
 
@@ -70,6 +71,66 @@ def save_datadis_data(data, credentials, data_type, row_keys, column_map, config
         logger.log(f"store {config['store']} is not supported")
 
 
+# only use with less than 1 year
+def get_1h_in_period(init_time, end_time):
+    init_time = TZ.localize(init_time)
+    end_time = TZ.localize(end_time)
+    return ((end_time - init_time).days + 1) * 24 + (end_time - init_time).seconds // 3600
+
+
+def get_15min_in_period(init_time, end_time):
+    init_time = TZ.localize(init_time)
+    end_time = TZ.localize(end_time)
+    return ((end_time - init_time).days + 1) * 96 + (end_time - init_time).seconds // 900
+
+
+def get_1m_in_period(init_time, end_time):
+    r = relativedelta(end_time, init_time - relativedelta(months=1))
+    return r.months + (12 * r.years)
+
+
+def parse_max_power_chunk(max_power):
+    if len(max_power) < 0:
+        return list()
+    try:
+        df_consumption = pd.DataFrame(max_power)
+        # Cast datetime64[ns] to timestamp (int64)
+        df_consumption.set_index('datetime', inplace=True)
+        df_consumption.sort_index(inplace=True)
+
+        for c in [x for x in df_consumption.columns if x.startswith("datetime_")]:
+            df_consumption[c] = df_consumption[c].astype('int64') // 10 ** 9
+
+        df_consumption['timestamp'] = df_consumption.index.astype('int64') // 10 ** 9
+        m_power = df_consumption.to_dict(orient='records')
+        for x in m_power:
+            for c in [_ for _ in x.keys() if _.startswith("datetime_")]:
+                if x[c] == -9223372037:
+                    period = c.split("_")[2]
+                    x.pop(f"datetime_period_{period}")
+                    x.pop(f"maxPower_period_{period}")
+
+        return m_power
+    except Exception as e:
+        sys.stderr.write(f"Received an exception when parsing max power data: {e}\n")
+        mongo_logger.log(f"Received an exception when parsing max power data: {e}")
+        return list()
+
+def parse_consumption_chunk(consumption):
+    if len(consumption) < 0:
+        return list()
+    try:
+        df_consumption = pd.DataFrame(consumption)
+        df_consumption.index = df_consumption['datetime']
+        df_consumption.sort_index(inplace=True)
+        # Cast datetime64[ns] to timestamp (int64)
+        df_consumption['timestamp'] = df_consumption['datetime'].astype('int64') // 10 ** 9
+        return df_consumption.to_dict(orient='records')
+    except Exception as e:
+        sys.stderr.write(f"Received an exception when parsing consumption data: {e}\n")
+        mongo_logger.log(f"Received and exception when parsing consumption data: {e}")
+        return list()
+
 data_types_dict = {
     "data_1h": {
         "type_data": "timeseries",
@@ -77,7 +138,8 @@ data_types_dict = {
         "measurement_type": "0",
         "endpoint": ENDPOINTS.GET_CONSUMPTION,
         "params": ["cups", "distributor_code", "start_date", "end_date", "measurement_type", "point_type"],
-        "elems_in_day": 24,
+        "elements_in_period": get_1h_in_period,
+        "parser": parse_consumption_chunk,
     },
     "data_15m": {
         "type_data": "timeseries",
@@ -85,15 +147,17 @@ data_types_dict = {
         "measurement_type": "1",
         "endpoint": ENDPOINTS.GET_CONSUMPTION,
         "params": ["cups", "distributor_code", "start_date", "end_date", "measurement_type", "point_type"],
-        "elems_in_day": 96,
+        "elements_in_period": get_15min_in_period,
+        "parser": parse_consumption_chunk,
     },
-    # "max_power": {
-    #     "type_data": "timeseries",
-    #     "freq_rec": relativedelta(months=6),
-    #     "endpoint": ENDPOINTS.GET_MAX_POWER,
-    #     "params": ["cups", "distributor_code", "start_date", "end_date"]
-    #     "elems_in_day": 1,
-    # },
+    "max_power": {
+        "type_data": "timeseries",
+        "freq_rec": relativedelta(months=6),
+        "endpoint": ENDPOINTS.GET_MAX_POWER,
+        "params": ["cups", "distributor_code", "start_date", "end_date"],
+        "elements_in_period": get_1m_in_period,
+        "parser": parse_max_power_chunk,
+    },
     # "contracts": {
     #     "freq_rec": "static",
     #     "endpoint": ENDPOINTS.GET_CONTRACT,
@@ -120,7 +184,7 @@ def parse_arguments(row, type_params, date_ini, date_end):
     return arguments
 
 
-def download_chunk(data_type, supply, type_params, credentials, config, status):
+def download_chunk(supply, type_params, credentials, status):
     try:
         date_ini_req = status['date_ini_block'].date()
         date_end_req = status['date_end_block'].date()
@@ -133,26 +197,15 @@ def download_chunk(data_type, supply, type_params, credentials, config, status):
         consumption = datadis.datadis_query(type_params['endpoint'], **kwargs)
         if not consumption:
             raise GetDataException("No data could be found")
-
-        df_consumption = pd.DataFrame(consumption)
-        df_consumption.index = df_consumption['datetime']
-        df_consumption.sort_index(inplace=True)
-        # Cast datetime64[ns] to timestamp (int64)
-        df_consumption['timestamp'] = df_consumption['datetime'].astype('int64') // 10 ** 9
-
-        # send data to kafka or hbase
-        save_datadis_data(df_consumption.to_dict('records'), credentials, data_type,
-                          ["cups", "timestamp"], [("info", "all")], config, mongo_logger)
-        sys.stderr.write(f"\t\t\tRequest sent\n")
-        mongo_logger.log(f"\t\t\tRequest sent")
-        # store status info
-        status['values'] = df_consumption.shape[0]
+        return consumption
     except GetDataException as e:
         sys.stderr.write(f"Error gathering data from datadis for user {credentials['username']}: {e}\n")
         mongo_logger.log(f"Error gathering data from datadis for user {credentials['username']}: {e}")
+        return list()
     except Exception as e:
-        sys.stderr.write(f"Received and exception: {e}\n")
-        mongo_logger.log(f"Received and exception: {e}")
+        sys.stderr.write(f"Received an exception when downloading: {e}\n")
+        mongo_logger.log(f"Received an exception when downloading: {e}")
+        return list()
 
 
 class DatadisMRJob(MRJob, ABC):
@@ -228,7 +281,7 @@ class DatadisMRJob(MRJob, ABC):
                 device = {
                     "_id": supply['cups']
                 }
-            # create the data chuncks we will gather the information for timeseries
+            # create the data chunks we will gather the information for timeseries
             date_ini = datetime.strptime(supply['validDateFrom'], '%Y/%m/%d').date()
             now = datetime.today().date() + timedelta(days=1)
             try:
@@ -255,14 +308,14 @@ class DatadisMRJob(MRJob, ABC):
                     k = "~".join([current_ini.strftime("%Y-%m-%d"), current_end.strftime("%Y-%m-%d")])
                     date_ini_block = datetime.combine(current_ini, datetime.min.time())
                     date_end_block = datetime.combine(current_end, datetime.min.time())
-                    time_diff = TZ.localize(date_end_block) - TZ.localize(date_ini_block)
                     if k not in device[t]:
                         device[t].update({
                             k: {
                                 "date_ini_block": date_ini_block,
                                 "date_end_block": date_end_block,
                                 "values": 0,
-                                "total": (time_diff.days + 1) * type_params['elems_in_day'] + time_diff.seconds // 3600,
+                                "total": type_params['elements_in_period'](date_ini_block, date_end_block),
+                                "retries": 6,
                             }
                         })
                     loop_date_ini = current_end + relativedelta(days=1)
@@ -285,14 +338,35 @@ class DatadisMRJob(MRJob, ABC):
                         if not(status['date_ini_block'] <= datetime.combine(now, datetime.min.time())
                                <= status['date_end_block']):
                             continue
-                        download_chunk(data_type, supply, type_params, credentials, self.config, status)
+                        data = download_chunk(supply, type_params, credentials, status)
+                        self.increment_counter('gathered', 'device', 1)
+
+                        data_df = type_params['parser'](data)
+                        if len(data_df) > 0:
+                            save_datadis_data(data_df, credentials, data_type,
+                                              ["cups", "timestamp"], [("info", "all")], self.config, mongo_logger)
+                            sys.stderr.write(f"\t\t\tRequest sent\n")
+                            mongo_logger.log(f"\t\t\tRequest sent")
+                        # store status info
+                        status['values'] = len(data_df)
+
                         self.increment_counter('gathered', 'device', 1)
                     if self.config['policy'] == "repair":
                         # get all incomplete chunks
-                        status_list = [x for x in device[data_type].values() if x['values'] < x['total']]
+                        status_list = [x for x in device[data_type].values()
+                                       if x['values'] < x['total'] and x['retries'] > 0]
                         for status in status_list:
-                            download_chunk(data_type, supply, type_params, credentials, self.config, status)
+                            data = download_chunk(supply, type_params, credentials, status)
                             self.increment_counter('gathered', 'device', 1)
+                            data_df = type_params['parser'](data)
+                            if len(data_df) > 0:
+                                save_datadis_data(data_df, credentials, data_type,
+                                                  ["cups", "timestamp"], [("info", "all")], self.config, mongo_logger)
+                                sys.stderr.write(f"\t\t\tRequest sent\n")
+                                mongo_logger.log(f"\t\t\tRequest sent")
+                            # store status info
+                            status['retries'] -= 1
+                            status['values'] = len(data_df)
 
             sys.stderr.write(f"finished device\n")
             mongo_logger.log(f"finished device")

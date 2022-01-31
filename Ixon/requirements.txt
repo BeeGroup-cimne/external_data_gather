@@ -15,7 +15,7 @@ entrypoints==0.3
 et-xmlfile==1.1.0
 future==0.18.2
 gemweb @ git+https://github.com/BeeGroup-cimne/beegweb@302be91cd7be8f5a3fd043fb49c2d3705980fff6
-datadis @ git+https://github.com/BeeGroup-cimne/beedis@v1.0.2
+datadis @ git+https://github.com/BeeGroup-cimne/beedis@v1.0.3
 happybase==1.2.0
 idna==2.10
 ipykernel==6.3.1

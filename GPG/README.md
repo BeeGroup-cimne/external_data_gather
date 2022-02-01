@@ -17,14 +17,12 @@ to the column family `info` with column using the raw format name.
 
 ## Import script information
 
-For each import run, the information stored regarding the status of this import will be a document containing the 
-following information:
+For each import run a log document will be stored in mongo:
 ```json
 {
-    "version" : "the version of the import, to be able to get the current data",
-    "inserted" : "number of inserted buildings(rows)",
-    "date" : "datetime of execution",
-    "user" : "user importing this file"
+    "user" : "the user that imported data",
+    "log_exec" : "The time when the scrip started",
+    "logs.gather" : "list with the logs of the import"
 }
 
 ```
@@ -34,5 +32,5 @@ following information:
 To run the import application, execute the python script with the following parameters:
 
 ```bash
-python GPG/GPG_gather.py -f <gpg file>
+python3 -m GPG -f <gpg file> -n <namespace> -u <user_importing> -s <storage>
 ```

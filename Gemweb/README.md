@@ -31,42 +31,34 @@ For each static data import run, the information stored regarding the status of 
 following information:
 ```json
 {
-    "version" : "the version of the import, to be able to get the current data",
-    "inserted" : "number of inserted buildings(rows)",
-    "date" : "datetime of execution",
-    "user" : "user importing this file"
+    "user" : "the user that imported data",
+    "log_exec" : "The time when the scrip started",
+    "logs.gather" : "list with the logs of the import"
 }
 ```
 For the timeseries, we will contain a document for each imported device and each granularity, the information contained will be:
+**USER BANNED**
 ```json
-{
-    "_id" : "id of the source in gemweb",
-    "data_month" : {
-        "datetime_from" : "date where we start having data",
-        "datetime_to" : "date stop having data",
-        "updated" : "date of last import execution"
-    },
-    "data_daily" : {
-        "datetime_from" : "date where we start having data",
-        "datetime_to" : "date stop having data",
-        "updated" : "date of last import execution"
-    },
-    "data_1h" : {
-        "datetime_from" : "date where we start having data",
-        "datetime_to" : "date stop having data",
-        "updated" : "date of last import execution"
-    }
-} 
+
 ```
 
 ## RUN import application
 To run the import application, execute the python script with the following parameters:
 
-```bash
-# import static data
-python Gemweb/gemweb_gather.py -d <data_type>
-# where data_type can be one of ['entities', 'buildings', 'solarpv', 'supplies', 'invoices']
+**USER BANNED**
 
-# import timeseries
-python Gemweb/timeseries_gather.py
-```
+[//]: # (```bash)
+
+[//]: # (## import static data)
+
+[//]: # (#python Gemweb/gemweb_gather.py -d <data_type>)
+
+[//]: # (## where data_type can be one of ['entities', 'buildings', 'solarpv', 'supplies', 'invoices'])
+
+[//]: # (#)
+
+[//]: # (## import timeseries)
+
+[//]: # (#python Gemweb/timeseries_gather.py)
+
+[//]: # (```)

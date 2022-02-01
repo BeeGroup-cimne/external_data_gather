@@ -1,5 +1,7 @@
 import argparse
 import os
+from datetime import datetime
+
 import settings
 from GPG.GPG_gather import read_data_from_xlsx
 from utils import save_to_kafka, save_to_hbase, read_config, mongo_logger
@@ -17,7 +19,8 @@ if __name__ == '__main__':
     else:
         args = ap.parse_args()
     config = read_config(settings.conf_file)
-    mongo_logger.create(config['mongo_db'], config['datasources']['GPG']['log'], 'gather', user=args.user)
+    mongo_logger.create(config['mongo_db'], config['datasources']['GPG']['log'], 'gather', user=args.user,
+                        log_exec=datetime.utcnow())
 
     mongo_logger.log("start to parse a new file")
     try:

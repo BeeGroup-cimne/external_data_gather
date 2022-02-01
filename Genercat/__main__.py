@@ -2,6 +2,7 @@ import argparse
 import hashlib
 import os
 import sys
+from datetime import datetime
 
 import settings
 from Genercat.genercat_gather import get_data
@@ -20,7 +21,8 @@ if __name__ == '__main__':
     else:
         args = ap.parse_args()
     config = read_config(settings.conf_file)
-    mongo_logger.create(config['mongo_db'], config['datasources']['genercat']['log'], 'gather', user=args.user)
+    mongo_logger.create(config['mongo_db'], config['datasources']['genercat']['log'], 'gather', user=args.user,
+                        log_exec=datetime.utcnow())
     mongo_logger.log("start to parse a new file")
     sys.stderr.write("start to parse a new file\n")
     try:

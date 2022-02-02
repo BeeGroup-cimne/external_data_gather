@@ -1,7 +1,7 @@
 import argparse
 import os
 import settings
-from Datadis.datadis_gather import get_static_data, get_timeseries_data
+from Datadis.datadis_gather import get_timeseries_data
 from utils import read_config
 
 if __name__ == '__main__':

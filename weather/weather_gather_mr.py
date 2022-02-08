@@ -59,8 +59,8 @@ class WeatherMRJob(MRJob, ABC):
         cp = {k: v for k, v in zip(["latitude", "longitude"], line.split("\t"))}
         mongo_logger.create(self.config['mongo_db'], self.config['datasources']['weather']['log'], 'gather',
                             log_exec=datetime.utcnow())
-        sys.stderr.write(f"Processing: {'-'.join([str(cp['cp']['latitude']), str(cp['cp']['longitude'])])}\n")
-        mongo_logger.log(f"Processing: {'-'.join([str(cp['cp']['latitude']), str(cp['cp']['longitude'])])}")
+        sys.stderr.write(f"Processing: {'-'.join([str(cp['latitude']), str(cp['longitude'])])}\n")
+        mongo_logger.log(f"Processing: {'-'.join([str(cp['latitude']), str(cp['longitude'])])}")
         weather_stations = \
             mongo_logger.get_connection()[self.config['datasources']['weather']['log_devices']]
         # get the highest page document log

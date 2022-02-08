@@ -64,15 +64,15 @@ class WeatherMRJob(MRJob, ABC):
         weather_stations = \
             mongo_logger.get_connection()[self.config['datasources']['weather']['log_devices']]
         # get the highest page document log
+        station_id = f"{float(cp['latitude']):.3f}~{float(cp['longitude']):.3f}"
         try:
-            station = weather_stations.find(
-                {"_id": f"{float(cp['latitude']):.3f}~{float(cp['longitude']):.3f}"}).sort([("page", -1)]).limit(1)[0]
+            station = weather_stations.find_one({"_id": station_id})
         except IndexError:
             station = None
         if not station:
             # if there is no log document create a new one
             station = {
-                "_id": f"{float(cp['latitude']):.3f}~{float(cp['longitude']):.3f}"
+                "_id": station_id
             }
         # create the data chunks we will gather the information for timeseries
         date_ini = datetime(2022, 1, 1)  # TODO refactor the date
@@ -101,7 +101,7 @@ class WeatherMRJob(MRJob, ABC):
 
         sys.stderr.write(f"finished device\n")
         mongo_logger.log(f"finished device")
-        weather_stations.replace_one({"_id": station['_id']}, station, upsert=True)
+        weather_stations.replace_one({"_id": station_id}, station, upsert=True)
         self.increment_counter('gathered', 'device', 1)
 
 

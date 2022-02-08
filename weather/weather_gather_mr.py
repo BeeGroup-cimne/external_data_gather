@@ -66,7 +66,7 @@ class WeatherMRJob(MRJob, ABC):
         # get the highest page document log
         try:
             station = weather_stations.find(
-                {f"{float(cp['latitude']):.3f}~{float(cp['longitude']):.3f}"}).sort([("page", -1)]).limit(1)[0]
+                {"_id": f"{float(cp['latitude']):.3f}~{float(cp['longitude']):.3f}"}).sort([("page", -1)]).limit(1)[0]
         except IndexError:
             station = None
         if not station:

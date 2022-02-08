@@ -21,6 +21,17 @@ def read_config(conf_file):
         return config
 
 
+class mongo_connection(object):
+    @classmethod
+    def __connection_mongo__(cls, config):
+        cli = MongoClient("mongodb://{user}:{pwd}@{host}:{port}/{db}".format(**config))
+        db = cli[config['db']]
+        return db
+
+    def __new__(cls, mongo_conf):
+        return cls.__connection_mongo__(mongo_conf)
+
+
 class mongo_logger(object):
     mongo_conf = None
     collection = None
@@ -37,7 +48,7 @@ class mongo_logger(object):
     def __connect__(mongo_conf, collection):
         mongo_logger.mongo_conf = mongo_conf
         mongo_logger.collection = collection
-        mongo_logger.mongo_connection = mongo_logger.__connection_mongo__(mongo_logger.mongo_conf)
+        mongo_logger.mongo_connection = mongo_connection(mongo_logger.mongo_conf)
         mongo_logger.db = mongo_logger.mongo_connection[mongo_logger.collection]
 
     @staticmethod
@@ -77,12 +88,7 @@ class mongo_logger(object):
                                        f"logs.{mongo_logger.log_type}": f"{datetime.utcnow()}: \
                                        {message}"}})
 
-    # MongoDB functions
-    @staticmethod
-    def __connection_mongo__(config):
-        cli = MongoClient("mongodb://{user}:{pwd}@{host}:{port}/{db}".format(**config))
-        db = cli[config['db']]
-        return db
+
 
 
 def save_to_mongo(mongo, documents, index_field=None):
@@ -133,6 +139,7 @@ def save_to_hbase(documents, h_table_name, hbase_connection, cf_mapping, row_fie
                         values["{cf}:{c}".format(cf=cf, c=c)] = str(d[c])
         h_batch.put(str(row), values)
     h_batch.send()
+
 
 def save_to_kafka(topic, info_document, config, batch=1000):
     info_document = deepcopy(info_document)

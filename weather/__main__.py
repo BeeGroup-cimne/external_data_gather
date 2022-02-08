@@ -73,7 +73,7 @@ def get_timeseries_data(config, cp_file):
 
     # Get all CP to generate the MR input file
     stations = get_weather_stations(config['neo4j'], cp_file)
-    local_input = generate_input_tsv(stations[10])  # TODO: remove this limit
+    local_input = generate_input_tsv(stations.iloc[:10])  # TODO: remove this limit
     input_mr = put_file_to_hdfs(source_file_path=local_input, destination_file_path='/tmp/weather_tmp/')
     remove_file(local_input)
 

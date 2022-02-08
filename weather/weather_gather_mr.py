@@ -55,75 +55,54 @@ class WeatherMRJob(MRJob, ABC):
         self.__read_config__()
 
     def mapper(self, id_key, line):
-        # map reads File and yields num%num_reducers ,lat, lon
-        station = {k: v for k, v in zip(["latitude", "longitude"], line.split("\t"))}
+        # map receives lat, lon and downloads DarkSky data,
+        cp = {k: v for k, v in zip(["latitude", "longitude"], line.split("\t"))}
         mongo_logger.create(self.config['mongo_db'], self.config['datasources']['weather']['log'], 'gather',
                             log_exec=datetime.utcnow())
-        log_exported = mongo_logger.export_log()
-        log_exported['log_id'] = str(log_exported['log_id'])
-        stations_by_reducer = 4  # TODO refactor to number of reducers
-        key = id_key % stations_by_reducer
-        yield key % stations_by_reducer, {"cp": station, "logger": log_exported}
-
-    def reducer_init(self):
-        self.__read_config__()
-
-    def reducer(self, _, values):
-        # reduce receives lat, lon and downloads DarkSky data,
-        # stores in external mongo the different chunks. and harmonize to kafka
-        # Loop supplies
-        values = list(values)
-        sys.stderr.write(
-            f"Received: {['-'.join([str(x['cp']['latitude']),str(x['cp']['longitude'])]) for x in values]}\n")
-        for info in values:
-            cp = info['cp']
-            import_log = info['logger']
-            import_log['log_id'] = bson.objectid.ObjectId(import_log['log_id'])
-            mongo_logger.import_log(import_log, "gather")
-            sys.stderr.write(f"Processing: {'-'.join([str(cp['cp']['latitude']), str(cp['cp']['longitude'])])}\n")
-            mongo_logger.log(f"Processing: {'-'.join([str(cp['cp']['latitude']), str(cp['cp']['longitude'])])}")
-            weather_stations = \
-                mongo_logger.get_connection()[self.config['datasources']['weather']['log_devices']]
-            # get the highest page document log
-            try:
-                station = weather_stations.find(
-                    {f"{float(cp['latitude']):.3f}~{float(cp['longitude']):.3f}"}).sort([("page", -1)]).limit(1)[0]
-            except IndexError:
-                station = None
-            if not station:
-                # if there is no log document create a new one
-                station = {
-                    "_id": f"{float(cp['latitude']):.3f}~{float(cp['longitude']):.3f}"
+        sys.stderr.write(f"Processing: {'-'.join([str(cp['cp']['latitude']), str(cp['cp']['longitude'])])}\n")
+        mongo_logger.log(f"Processing: {'-'.join([str(cp['cp']['latitude']), str(cp['cp']['longitude'])])}")
+        weather_stations = \
+            mongo_logger.get_connection()[self.config['datasources']['weather']['log_devices']]
+        # get the highest page document log
+        try:
+            station = weather_stations.find(
+                {f"{float(cp['latitude']):.3f}~{float(cp['longitude']):.3f}"}).sort([("page", -1)]).limit(1)[0]
+        except IndexError:
+            station = None
+        if not station:
+            # if there is no log document create a new one
+            station = {
+                "_id": f"{float(cp['latitude']):.3f}~{float(cp['longitude']):.3f}"
+            }
+        # create the data chunks we will gather the information for timeseries
+        date_ini = datetime(2022, 1, 1)  # TODO refactor the date
+        now = datetime.now() + timedelta(days=1)
+        for t, type_params in data_weather_sources.items():
+            sys.stderr.write(f"\tType: {t}\n")
+            mongo_logger.log(f"\tType {t}")
+            if t not in station:
+                station[t] = {
+                    "date_ini": date_ini,
+                    "date_end": None
                 }
-            # create the data chunks we will gather the information for timeseries
-            date_ini = datetime(2022, 1, 1)  # TODO refactor the date
-            now = datetime.now() + timedelta(days=1)
-            for t, type_params in data_weather_sources.items():
-                sys.stderr.write(f"\tType: {t}\n")
-                mongo_logger.log(f"\tType {t}")
-                if t not in station:
-                    station[t] = {
-                        "date_ini": date_ini,
-                        "date_end": None
-                    }
-                    start_obtaining_date = date_ini
-                elif station[t]['date_end']:
-                    start_obtaining_date = station[t]['date_end']
-                else:
-                    start_obtaining_date = date_ini
-                data = download_chunk(cp, type_params, self.config, start_obtaining_date, now)
-                self.increment_counter('gathered', 'device', 1)
-                if len(data) > 0:
-                    last_data = data.iloc[-1].ts.to_pydatetime().replace(tzinfo=None)
-                    save_weather_data(data, mongo_logger, self.config)
-                    station[t]['date_end'] = last_data
-                    sys.stderr.write(f"\t\t\tRequest sent\n")
-                    mongo_logger.log(f"\t\t\tRequest sent")
-
-            sys.stderr.write(f"finished device\n")
-            mongo_logger.log(f"finished device")
-            weather_stations.replace_one({"_id": station['_id']}, station, upsert=True)
+                start_obtaining_date = date_ini
+            elif station[t]['date_end']:
+                start_obtaining_date = station[t]['date_end']
+            else:
+                start_obtaining_date = date_ini
+            data = download_chunk(cp, type_params, self.config, start_obtaining_date, now)
             self.increment_counter('gathered', 'device', 1)
+            if len(data) > 0:
+                last_data = data.iloc[-1].ts.to_pydatetime().replace(tzinfo=None)
+                save_weather_data(data, mongo_logger, self.config)
+                station[t]['date_end'] = last_data
+                sys.stderr.write(f"\t\t\tRequest sent\n")
+                mongo_logger.log(f"\t\t\tRequest sent")
+
+        sys.stderr.write(f"finished device\n")
+        mongo_logger.log(f"finished device")
+        weather_stations.replace_one({"_id": station['_id']}, station, upsert=True)
+        self.increment_counter('gathered', 'device', 1)
 
 
 if __name__ == '__main__':

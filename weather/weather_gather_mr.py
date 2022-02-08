@@ -30,7 +30,7 @@ def save_weather_data(data, logger, config):
         "collection_type": "darksky",
         "source": "weather",
         "logger": logger.export_log(),
-        "data": data
+        "data": data.to_dict(orient="records")
     }
     save_to_kafka(topic=config['datasources']['weather']['kafka_harmonize_topic'],
                   info_document=kafka_message, config=config['kafka'])

@@ -89,7 +89,7 @@ def get_timeseries_data(config, cp_file):
         '--jobconf', f'mapreduce.map.env={MOUNTS},{IMAGE},{RUNTYPE}',
         '--jobconf', f'mapreduce.reduce.env={MOUNTS},{IMAGE},{RUNTYPE}',
         '--jobconf', f"mapreduce.job.name=weather_import",
-        '--jobconf', f'mapreduce.job.reduces=8'
+        '--jobconf', f'mapreduce.job.maps=8'
     ])
     try:
         with weather_job.make_runner() as runner:

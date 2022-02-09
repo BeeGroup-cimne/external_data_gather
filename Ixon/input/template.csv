@@ -1,4 +1,0 @@
-BACnet Name,BACnet Type,Object ID,Description,Standard Naming
-CL1\HorariActiu,binaryInput,1,"0=Inactiu, 1=Actiu",?¿
-CL1\ImpTª,analogInput,37,ºC,?¿
-CL4\LimitCalor,analogOutput,12,ºC,?¿

@@ -27,12 +27,11 @@ class MRIxonJob(MRJob):
 
         ixon_conn = Ixon(l[2])  # api application
         ixon_conn.generate_token(l[0], l[1])  # user, password
-        ixon_conn.discovery()
         ixon_conn.get_companies()
         ixon_conn.get_agents()
 
         for index, agent in enumerate(ixon_conn.agents):
-            dict_result = ixon_conn.get_credentials()
+            dict_result = {"token": ixon_conn.token, "api_application": l[2], "company": ixon_conn.companies[0]}
             dict_result.update({"agent": agent['publicId']})
             dict_result.update({"company_label": l[3]})
             yield index % NUM_VPNS_CONFIG, dict_result
@@ -40,62 +39,47 @@ class MRIxonJob(MRJob):
     def mapper_generate_network_config(self, key, line):
 
         try:
+            headers = {
+                "Api-Version": '2',
+                "Api-Application": line['api_application'],
+                'Authorization': f"Bearer {line['token']}",
+                "Api-Company": line['company']['publicId']
+            }
+
             # Get network configuration
             res = requests.get(
-                line[
-                    'url'] + '/agents/{}?fields=activeVpnSession.vpnAddress,config.routerLan.*,devices.*,devices.dataProtocol.*,deviceId,description'.format(
-                    line['agent']),
-                headers={
-                    'IXapi-Version': line['api_version'],
-                    'IXapi-Application': line['api_application'],
-                    'Authorization': line['token'],
-                    'IXapi-Company': line['company']
-                }, timeout=20
-            )
+                url=f"https://portal.ixon.cloud/api/agents/{line['agent']}?fields=activeVpnSession.vpnAddress,config.routerLan.*,devices.*,devices.dataProtocol.*,deviceId,description",
+                headers=headers,
+                timeout=(5, 10))
 
             # Store data
-            data = res.json()['data']
+            res = res.json()
 
-            if data is not None and data['devices']:
-                ips = {}
-                ips["company_label"] = line['company_label']
+            if 'data' in res:
+                data = res['data']
 
-                ips['ip_vpn'] = data['activeVpnSession']['vpnAddress'] if data['activeVpnSession'] else None
-                ips['description'] = data['description']
+                if 'deviceId' in data:
+                    db = connection_mongo(self.connection)
+                    ixon_devices = db['ixon_devices']
+                    current_buildings = list(ixon_devices.distinct('building_id'))
 
-                if data['config'] is not None and data['config']['routerLan'] is not None:
-                    ips['network'] = data['config']['routerLan']['network']
-                    ips['network_mask'] = data['config']['routerLan']['netMask']
-
-                if data['deviceId'] is not None:
-                    ips['deviceId'] = data['deviceId']
-                    ips['bacnet_device'] = None
-
-                    for i in data['devices']:
-                        if i['dataProtocol'] is not None and i['dataProtocol']['publicId'] == 'bacnet-ip':
-                            ips['bacnet_device'] = i['ipAddress']
-                            break
-
-                # Only return data that use bacnet protocol
-                if ips['bacnet_device'] is not None and ips['network'] is not None and ips[
-                    'network_mask'] is not None and ips['ip_vpn'] is not None:
-                    yield key, ips
+                    if data['deviceId'] in current_buildings:
+                        if data['activeVpnSession'] and data['config'] and data['config']['routerLan']:
+                            values = {"company_label": line['company_label'],
+                                      'ip_vpn': data['activeVpnSession']['vpnAddress'],
+                                      'network': data['config']['routerLan']['network'],
+                                      'network_mask': data['config']['routerLan']['netMask'],
+                                      'deviceId': data['deviceId'],
+                                      'description': data['description']}
+                            yield key, values
 
         except Exception as ex:
-            print(ex)
+            print(str(ex))
 
     def reducer_generate_vpn(self, key, values):
 
-        sys.stderr.write(str(key))
+        db = connection_mongo(self.connection)
 
-        # Recover devices from mongo
-        URI = 'mongodb://%s:%s@%s:%s/%s' % (
-            self.connection['user'], self.connection['password'], self.connection['host'],
-            self.connection['port'],
-            self.connection['db'])
-
-        mongo_connection = MongoClient(URI)
-        db = mongo_connection[self.connection['db']]
         ixon_devices = db['ixon_devices']
         ixon_logs = db['ixon_logs']
 
@@ -103,8 +87,8 @@ class MRIxonJob(MRJob):
 
             building_devices = list(ixon_devices.find({'building_id': value['deviceId']}, {'_id': 0}))
 
-            if len(building_devices) > 0:
-                sys.stderr.write(str(building_devices[0]['building_name']) + "\n")
+            if building_devices:
+                sys.stderr.write(f"{building_devices[0]['building_name']}")
 
                 # Generate VPN Config
                 with open(f'vpn_template_{key}.ovpn', 'r') as file:
@@ -119,7 +103,7 @@ class MRIxonJob(MRJob):
                 interfaces = subprocess.run(["hostname", "-I"], stdout=subprocess.PIPE)
                 interfaces_list = interfaces.stdout.decode(encoding="utf-8").split(" ")
 
-                sys.stderr.write(str(interfaces_list))
+                sys.stderr.write(f"{interfaces_list}")
 
                 # Waiting to VPN connection
                 time_out = 4  # seconds
@@ -147,7 +131,7 @@ class MRIxonJob(MRJob):
                 current_time = time.time()
                 aux = False
 
-                while not aux and time.time() - current_time < 4:
+                while not aux and time.time() - current_time < 3:
                     try:
                         bacnet = BAC0.lite(ip=vpn_ip + '/16', bbmdAddress=value['ip_vpn'] + ':47808', bbmdTTL=900)
                         aux = True
@@ -194,7 +178,7 @@ class MRIxonJob(MRJob):
                      "devices_logs": devices_logs,
                      "date": datetime.datetime.utcnow(), "successful": True})
 
-                if len(results) > 0:
+                if results:
                     # Store data to HBase
                     try:
                         hbase = connection_hbase(self.hbase)
@@ -210,28 +194,24 @@ class MRIxonJob(MRJob):
                     except Exception as ex:
                         sys.stderr.write(str(ex))
 
-                # out = subprocess.run(["hostname", "-I"], stdout=subprocess.PIPE)
-                # sys.stderr.write(out.stdout.decode(encoding="utf-8"))
-
-                # yield key, str(results)
-
     def reducer_init_databases(self):
         # Read and save MongoDB config
-        with open('config.json', 'r') as file:
-            config = json.load(file)
+        config = get_json_config('config.json')
         self.connection = config['mongo_db']
         self.hbase = config['hbase']
         self.datasources = config['datasources']
 
+    def mapper_init(self):
+        # Read and save MongoDB config
+        config = get_json_config('config.json')
+        self.connection = config['mongo_db']
+
     def steps(self):
         return [
             MRStep(mapper=self.mapper_get_available_agents),
-            MRStep(mapper=self.mapper_generate_network_config),
-            MRStep(reducer_init=self.reducer_init_databases, reducer=self.reducer_generate_vpn)
-        ]
+            MRStep(mapper_init=self.mapper_init, mapper=self.mapper_generate_network_config),
+            MRStep(reducer_init=self.reducer_init_databases, reducer=self.reducer_generate_vpn)]
 
 
 if __name__ == '__main__':
-    # python ixon_mrjob.py -r hadoop hdfs:///output.tsv --file Ixon.py --file vpn_template_0.ovpn --file config.json
-    # docker run --cap-add=NET_ADMIN --device=/dev/net/tun -it -v /home/ubuntu/ixon_test:/home/ubuntu/ixon_test -u root beerepo.tech.beegroup-cimne.com:5000/ixon_mr bash
     MRIxonJob.run()

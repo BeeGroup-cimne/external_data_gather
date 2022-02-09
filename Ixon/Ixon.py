@@ -1,247 +1,96 @@
 import base64
 import json
+
 import requests
 
-API_URL = 'https://api.ixon.net:443/'
 
-
+# https://developer.ixon.cloud/docs/how-to-use-the-apiv2
 class Ixon:
-    def __init__(self, api_application):
-        self.api_version = '1'
-        self.api_url = API_URL
-        self.api_application = api_application
-        self.token = None
-        self.token_authorization = None
-        self.discovered = None
-        self.companies = None
-        self.agents = None
-        self.agents_types = None
-        self.agents_categories = None
-        self.agents_configuration = None
+    def __init__(self, application_id, token='', public_id=''):
+        self.api_version = '2'
+        self.api_url = 'https://portal.ixon.cloud/api'
+        self.application_id = application_id
+        self.token = token
+        self.publicId = public_id
+        self.companies = []
+        self.agents = []
 
-    def generate_token(self, email, password):
-        res = requests.post(url=self.api_url + '/access/tokens?fields=secretId', headers={
-            'IXapi-Version': self.api_version,
-            'IXapi-Application': self.api_application,
-            'Authorization': 'Basic ' + base64.b64encode(bytes('%s::%s' % (email, password), 'utf-8')).decode(
-                'utf-8')
-        }, data={'expiresIn': 36000}, timeout=(5, 20))
+    def generate_token(self, email, password, otp=''):
+        encoded_str = base64.b64encode(bytes(f"{email}:{otp}:{password}", 'utf-8')).decode('utf-8')
+
+        headers = {"Api-Version": self.api_version,
+                   "Api-Application": self.application_id,
+                   "Content-Type": "application/json",
+                   "Authorization": f"Basic {encoded_str}"
+                   }
+
+        res = requests.post(url=self.api_url + '/access-tokens', headers=headers,
+                            data=json.dumps({"expiresIn": 5184000}), timeout=(5, 20))  # expiresIn (seconds) max: 60d
 
         assert 201 == res.status_code
-        self.token = res.json()['data']['secretId']
-        self.token_authorization = 'Bearer %s' % res.json()['data']['secretId']
 
-    def discovery(self):
-        res = requests.get(
-            self.api_url,
-            headers={
-                'IXapi-Version': self.api_version,
-                'IXapi-Application': self.api_application,
-            }
-        )
-        assert 200 == res.status_code
-
-        self.discovered = {
-            row['rel']: row['href']
-            for row in res.json()['links']
-        }
+        res = res.json()
+        self.token = res['data']['secretId']
+        self.publicId = res['data']['publicId']
 
     def get_companies(self):
+        headers = {
+            "Content-Type": "application/json",
+            "Api-Version": self.api_version,
+            "Api-Application": self.application_id,
+            "Authorization": f"Bearer {self.token}"
+        }
+
+        res = requests.get(url=self.api_url + f'/companies?fields=publicId,name', headers=headers)
+
+        assert 200 == res.status_code
+
+        res = res.json()
+        self.companies = res['data']
+
+    def get_agents(self, limit=1000):
+        headers = {
+            "Content-Type": "application/json",
+            "Api-Version": self.api_version,
+            "Api-Application": self.application_id,
+            "Authorization": f"Bearer {self.token}",
+            "Api-Company": self.companies[0]['publicId']
+        }
+
+        moreAfter = True
+
+        while moreAfter:
+            if moreAfter is True:
+                res = requests.get(url=self.api_url + f'/agents?page-size={limit}', headers=headers)
+            else:
+                res = requests.get(url=self.api_url + f'/agents?page-size={limit}&page-after={moreAfter}',
+                                   headers=headers)
+
+            res = res.json()
+            moreAfter = res['moreAfter']
+            self.agents.extend(res['data'])
+
+    def get_network_config(self, agent):
+        headers = {
+            "Api-Version": '2',
+            "Api-Application": self.application_id,
+            'Authorization': f"Bearer {self.token}",
+            "Api-Company": self.companies[0]['publicId']
+        }
+
         res = requests.get(
-            self.discovered['CompanyList'],
-            headers={
-                'IXapi-Version': self.api_version,
-                'IXapi-Application': self.api_application,
-                'Authorization': self.token_authorization,
-            }
-        )
+            url=f"https://portal.ixon.cloud/api/agents/{agent}?fields=activeVpnSession.vpnAddress,config.routerLan.*,devices.*,devices.dataProtocol.*,deviceId,description",
+            headers=headers,
+            timeout=20)
         assert 200 == res.status_code
-
-        self.companies = res.json()['data']
-
-    def get_agents(self):
-        # TODO: Loop companies
-        res = requests.get(
-            self.discovered['AgentList'],
-            headers={
-                'IXapi-Version': self.api_version,
-                'IXapi-Application': self.api_application,
-                'Authorization': self.token_authorization,
-                'IXapi-Company': self.companies[0]['publicId']
-            }
-        )
-        assert 200 == res.status_code
-
-        self.agents = res.json()['data']
-
-    def get_agent(self, publicId):
-        res = requests.get(self.discovered['Agent'].replace('{publicId}', publicId),
-                           headers={
-                               'IXapi-Version': self.api_version,
-                               'IXapi-Application': self.api_application,
-                               'Authorization': self.token_authorization,
-                               'IXapi-Company': self.companies[0]['publicId']
-                           }
-                           )
-        assert 200 == res.status_code
-
-        return res.json()['data']
-
-    def get_agent_network_data(self, publicId):
-        try:
-            res = requests.get(
-                self.api_url + '/agents/{}?fields=activeVpnSession.vpnAddress,config.routerLan.*,devices.*,devices.dataProtocol.*,deviceId,description'.format(
-                    publicId),
-                headers={
-                    'IXapi-Version': self.api_version,
-                    'IXapi-Application': self.api_application,
-                    'Authorization': self.token_authorization,
-                    'IXapi-Company': self.companies[0]['publicId']
-                }, timeout=20
-            )
-
-            data = res.json()['data']
-
-            if data is not None and data['devices']:
-                ips = {}
-                ips['my_vpn_ip'] = '10.187.10.1/16'
-                ips['description'] = data['description']
-
-                if data['activeVpnSession']:
-                    ips['ip_vpn'] = data['activeVpnSession']['vpnAddress']
-                else:
-                    ips['ip_vpn'] = None
-
-                if data['config'] is not None:
-                    if data['config']['routerLan'] is not None:
-                        ips['network'] = data['config']['routerLan']['network']
-                        ips['network_mask'] = data['config']['routerLan']['netMask']
-                        ips['network_mask_bits'] = self.network_mask_to_bits(data['config']['routerLan']['netMask'])
-
-                if data['deviceId'] is not None:
-                    ips['deviceId'] = data['deviceId']
-                    ips['bacnet_device'] = None
-
-                    for i in data['devices']:
-                        if i['dataProtocol'] is not None and i['dataProtocol']['publicId'] == 'bacnet-ip':
-                            ips['bacnet_device'] = i['ipAddress']
-                            break
-
-                if ips['bacnet_device'] is not None:
-                    return ips
-
-        except Exception as ex:
-            print(ex)
-
-    def get_agent_types(self):
-        res = requests.get(self.discovered['AgentTypeList'],
-                           headers={
-                               'IXapi-Version': self.api_version,
-                               'IXapi-Application': self.api_application,
-                               'Authorization': self.token_authorization
-                           })
-
-        assert 200 == res.status_code
-        self.agents_types = res.json()['data']
-
-    def get_agent_categories(self):
-        res = requests.get(self.discovered['AgentCategoryList'],
-                           headers={
-                               'IXapi-Version': self.api_version,
-                               'IXapi-Application': self.api_application,
-                               'Authorization': self.token_authorization,
-                               'IXapi-Company': self.companies[0]['publicId']
-                           })
-
-        assert 200 == res.status_code
-        self.agents_categories = res.json()['data']
-
-    def get_agent_configuration(self, publicId, configType='openvpn'):
-        res = requests.get(
-            self.discovered['AgentConfiguration'].replace('{publicId}', publicId).replace('{configType}',
-                                                                                          configType) + '?fields=*',
-            headers={
-                'IXapi-Version': self.api_version,
-                'IXapi-Application': self.api_application,
-                'Authorization': self.token_authorization,
-                'IXapi-Company': self.companies[0]['publicId']
-            })
-
-        assert 200 == res.status_code
-        self.agents_configuration = res.json()['data']
-
-    def get_agent_configuration_router_add_subnet_list(self, agentId):
-        res = requests.get(
-            self.discovered['AgentConfigurationRouterAddSubnetList'].replace('{agentId}', agentId) + '?fields=*',
-            headers={
-                'IXapi-Version': self.api_version,
-                'IXapi-Application': self.api_application,
-                'Authorization': self.token_authorization,
-                'IXapi-Company': self.companies[0]['publicId']
-            })
-
-        assert 200 == res.status_code
-        return res.json()['data']
-
-    def get_agent_configuration_router_port_fwd_list(self, agentId):
-        res = requests.get(
-            self.discovered['AgentConfigurationRouterPortFwdList'].replace('{agentId}', agentId) + '?fields=*',
-            headers={
-                'IXapi-Version': self.api_version,
-                'IXapi-Application': self.api_application,
-                'Authorization': self.token_authorization,
-                'IXapi-Company': self.companies[0]['publicId']
-            })
-
-        assert 200 == res.status_code
-        return res.json()['data']
-
-    def get_agent_device_list(self, agentId):
-        res = requests.get(
-            self.discovered['AgentDeviceList'].replace('{agentId}', agentId) + '?fields=*',
-            headers={
-                'IXapi-Version': self.api_version,
-                'IXapi-Application': self.api_application,
-                'Authorization': self.token_authorization,
-                'IXapi-Company': self.companies[0]['publicId']
-            })
-
-        assert 200 == res.status_code
-        return res.json()['data']
-
-    def get_agent_vpn_usage(self, agentId):
-        res = requests.get(
-            self.discovered['AgentVpnUsage'].replace('{agentId}', agentId),
-            headers={
-                'IXapi-Version': self.api_version,
-                'IXapi-Application': self.api_application,
-                'Authorization': self.token_authorization,
-                'IXapi-Company': self.companies[0]['publicId']
-            })
-        assert 200 == res.status_code
-        return res.json()['data']
-
-    def network_mask_to_bits(self, network_mask):
-        return sum(bin(int(x)).count('1') for x in network_mask.split('.'))
-
-    def get_credentials(self):
-        return {'token': self.token_authorization, 'api_application': self.api_application,
-                'api_version': self.api_version, 'url': self.api_url,
-                'company': self.companies[0]['publicId']}
+        return res.json()
 
 
 if __name__ == '__main__':
-    with open('config.json') as config_file:
-        conf = json.load(config_file)
-
-    i = Ixon(conf['api_application'])
-    i.generate_token(conf['email'], conf['password'])
-    i.discovery()
-
+    i = Ixon(application_id='<application_id>')
+    i.generate_token('<user>', '<password>')
     i.get_companies()
     i.get_agents()
 
-    for x in i.agents:
-        aux = i.get_agent_network_data(x['publicId'])
-        if aux is not None:
-            print('%s [%s]: %s' % (x['name'], x['publicId'], aux))
+    for j in i.agents[:10]:
+        print(i.get_network_config(j['publicId']))

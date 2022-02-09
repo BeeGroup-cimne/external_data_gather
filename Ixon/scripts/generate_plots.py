@@ -108,7 +108,7 @@ def ranking_loses(data_init, data_end):
     g = sns.barplot(data=df, x="_id", y="count")
 
     plt.xticks(rotation=90)
-    plt.show()
+    plt.savefig('./reports/ranking_24_01_22_30_01_22.png')
 
 
 if __name__ == '__main__':
@@ -122,7 +122,7 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    config = get_json_config('config.json')
+    config = get_json_config('../config.json')
     db = connection_mongo(config['mongo_db'])
     device_logs = db['ixon_logs']
     ixon_devices = db['ixon_devices']

@@ -22,7 +22,7 @@ if __name__ == '__main__':
         exit(-1)
 
     # Set Config
-    with open('config.json', 'r') as file:
+    with open('../config.json', 'r') as file:
         config = json.load(file)
 
     # MongoDB Connection

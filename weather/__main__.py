@@ -25,7 +25,7 @@ def generate_input_tsv(df):
         return file.name
 
 
-def get_weather_stations(neo4j, cp_file):
+def get_weather_stations(neo4j):
     driver = GraphDatabase.driver(**neo4j)
     with driver.session() as session:
         location = session.run(
@@ -43,7 +43,7 @@ def get_weather_stations(neo4j, cp_file):
     return df_loc
 
 
-def get_timeseries_data(config, cp_file):
+def get_timeseries_data(config):
 
     # generate config file
     job_config = config.copy()
@@ -53,7 +53,7 @@ def get_timeseries_data(config, cp_file):
     config_file.close()
 
     # Get all CP to generate the MR input file
-    stations = get_weather_stations(config['neo4j'], cp_file)
+    stations = get_weather_stations(config['neo4j'])
     local_input = generate_input_tsv(stations.iloc[:10])  # TODO: remove this limit
     input_mr = put_file_to_hdfs(source_file_path=local_input, destination_file_path='/tmp/weather_tmp/')
     remove_file(local_input)
@@ -84,14 +84,13 @@ def get_timeseries_data(config, cp_file):
 
 if __name__ == '__main__':
     ap = argparse.ArgumentParser(description='Gathering weather data from CAMS, DARKSKY and METEOGALICIA')
-    ap.add_argument("-f", "--file", required=True, help="The file containing postal codes and locations")
 
     if os.getenv("PYCHARM_HOSTED"):
-        args_t = ["--store", "k", "-p", "last"]
+        args_t = []
         args = ap.parse_args(args_t)
     else:
         args = ap.parse_args()
 
     config = read_config(settings.conf_file)
-    get_timeseries_data(config, args.file)
+    get_timeseries_data(config)
 

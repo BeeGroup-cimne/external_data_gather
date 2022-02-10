@@ -26,8 +26,8 @@ def download_chunk(cp, type_params, config, date_ini, date_end):
 def save_weather_data(data, logger, config):
     kafka_message = {
         "namespace": "https://weather.beegroup-cimne.com#",
-        "user": "BEEgroup",
         "collection_type": "darksky",
+        "freq": "1h",
         "source": "weather",
         "logger": logger.export_log(),
         "data": data.to_dict(orient="records")

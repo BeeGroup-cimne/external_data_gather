@@ -92,5 +92,15 @@ if __name__ == '__main__':
     i.get_companies()
     i.get_agents()
 
-    for j in i.agents[:10]:
-        print(i.get_network_config(j['publicId']))
+    for j in i.agents[:]:
+        res = i.get_network_config(j['publicId'])
+
+        if 'data' in res:
+            data = res['data']
+            if 'deviceId' in data:
+                if data['activeVpnSession'] and data['config'] and data['config']['routerLan']:
+                    values = {'ip_vpn': data['activeVpnSession']['vpnAddress'],
+                              'network': data['config']['routerLan']['network'],
+                              'deviceId': data['deviceId'],
+                              'network_mask': data['config']['routerLan']['netMask']}
+                    print(values)

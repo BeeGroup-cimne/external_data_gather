@@ -15,7 +15,6 @@ from Ixon import Ixon
 from utils import *
 
 NUM_VPNS_CONFIG = 5
-vpn_network_ip = "(^| )10\.187"
 
 vpn_dict = {'0': '10.187.10.1', '1': '10.187.10.15', '2': '10.187.10.12', '3': '10.187.10.13', '4': '10.187.10.14'}
 
@@ -88,7 +87,7 @@ class MRIxonJob(MRJob):
             building_devices = list(ixon_devices.find({'building_id': value['deviceId']}, {'_id': 0}))
 
             if building_devices:
-                sys.stderr.write(f"{building_devices[0]['building_name']}")
+                sys.stderr.write(f"{building_devices[0]['building_name']}\n")
 
                 # Generate VPN Config
                 with open(f'vpn_template_{key}.ovpn', 'r') as file:
@@ -103,7 +102,7 @@ class MRIxonJob(MRJob):
                 interfaces = subprocess.run(["hostname", "-I"], stdout=subprocess.PIPE)
                 interfaces_list = interfaces.stdout.decode(encoding="utf-8").split(" ")
 
-                sys.stderr.write(f"{interfaces_list}")
+                sys.stderr.write(f"{interfaces_list}\n")
 
                 # Waiting to VPN connection
                 time_out = 4  # seconds
@@ -133,15 +132,18 @@ class MRIxonJob(MRJob):
 
                 while not aux and time.time() - current_time < 3:
                     try:
+                        sys.stderr.write(f"{vpn_ip},{value['ip_vpn']}\n")
                         bacnet = BAC0.lite(ip=vpn_ip + '/16', bbmdAddress=value['ip_vpn'] + ':47808', bbmdTTL=900)
                         aux = True
                     except Exception as ex:
+                        bacnet.disconnect()
                         sys.stderr.write(str(ex))
                         sys.stderr.write("%s " % str(building_devices[0]['building_name']) + "\n")
                         time.sleep(0.2)
 
                 if not aux:
                     subprocess.call(["sudo", "pkill", "openvpn"])
+                    bacnet.disconnect()
                     ixon_logs.insert_one(
                         {'building_id': value['deviceId'], "building_name": building_devices[0]['building_name'],
                          "devices_logs": devices_logs,
@@ -182,9 +184,8 @@ class MRIxonJob(MRJob):
                     # Store data to HBase
                     try:
                         hbase = connection_hbase(self.hbase)
-                        data_source = self.datasources['ixon']
                         htable = get_HTable(hbase,
-                                            "{}_{}_{}".format(data_source["hbase_name"], "data",
+                                            "{}_{}_{}".format(self.datasources['ixon']["hbase_name"], "data",
                                                               value['company_label']),
                                             {"v": {}, "info": {}})
 

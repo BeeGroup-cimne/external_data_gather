@@ -57,8 +57,7 @@ class WeatherMRJob(MRJob, ABC):
     def mapper(self, id_key, line):
         # map receives lat, lon and downloads DarkSky data,
         cp = {k: v for k, v in zip(["latitude", "longitude"], line.split("\t"))}
-        mongo_logger.create(self.config['mongo_db'], self.config['datasources']['weather']['log'], 'gather',
-                            log_exec=datetime.utcnow())
+        mongo_logger.import_log(self.config['mongo_logger'])
         sys.stderr.write(f"Processing: {'-'.join([str(cp['latitude']), str(cp['longitude'])])}\n")
         mongo_logger.log(f"Processing: {'-'.join([str(cp['latitude']), str(cp['longitude'])])}")
         weather_stations = \

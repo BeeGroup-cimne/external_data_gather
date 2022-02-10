@@ -46,8 +46,10 @@ def get_weather_stations(neo4j):
 def get_timeseries_data(config):
 
     # generate config file
+    mongo_logger.create(config['mongo_db'], config['datasources']['weather']['log'], 'gather',
+                        log_exec=datetime.utcnow())
     job_config = config.copy()
-    job_config.update({"kafka_message_size": settings.kafka_message_size})
+    job_config.update({"kafka_message_size": settings.kafka_message_size, "mongo_logger": mongo_logger.export_log()})
     config_file = NamedTemporaryFile(delete=False, prefix='config_job_', suffix='.pickle')
     config_file.write(pickle.dumps(job_config))
     config_file.close()

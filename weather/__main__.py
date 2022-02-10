@@ -30,31 +30,12 @@ def get_weather_stations(neo4j, cp_file):
     with driver.session() as session:
         location = session.run(
             f"""
-                Match(n:ns0__Building)-[:ns0__hasLocationInfo]-(l:ns0__LocationInfo)
-                WHERE l.ns0__addressLatitude IS NOT NULL and l.ns0__addressLongitude IS NOT NULL
-                RETURN toFloat(l.ns0__addressLatitude) AS latitude, toFloat(l.ns0__addressLongitude) AS longitude
+                Match (n:ns0__WeatherStation) 
+                WHERE (n)-[:ns0__isObservedBy]-(:ns0__BuildingSpace) 
+                RETURN n.ns1__lat as latitude, n.ns1__long as longitude
             """
         ).data()
-        postal_code = session.run(
-            f"""
-                Match(n:ns0__Building)-[:ns0__hasLocationInfo]-(l:ns0__LocationInfo) 
-                WHERE l.ns0__addressPostalCode IS NOT NULL and (l.ns0__addressLatitude IS NULL or l.ns0__addressLongitude IS NULL)
-                RETURN DISTINCT l.ns0__addressPostalCode as postal_code
-            """
-        ).data()
-        with open(cp_file) as f:
-            cpcat = json.load(f)
-        for cp in postal_code:
-            try:
-                lon, lat = cpcat[cp['postal_code']]
 
-            except:
-                try:
-                    lat, lon = cpcat[str(int(cp['postal_code'])+1).zfill(5)]
-                except:
-                    print(f"postal code {cp['postal_code']} does not exist")
-                    continue
-            location.append({"latitude": lat, "longitude": lon})
         df_loc = pd.DataFrame.from_records(location)
         df_loc.latitude = df_loc.latitude.apply(lambda x: f"{float(x):.3f}")
         df_loc.longitude = df_loc.longitude.apply(lambda x: f"{float(x):.3f}")

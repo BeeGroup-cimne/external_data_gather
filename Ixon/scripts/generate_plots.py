@@ -26,7 +26,11 @@ def loss_period_bar_plot(data_init, data_end):
                                                           "$lt": aux_end},
                  "successful": False})
 
-            values.append([building_name, i.date().strftime("%d/%b"), round(fail_logs * 100 / total_logs, 2)])
+            print(fail_logs, total_logs)
+            try:
+                values.append([building_name, i.date().strftime("%d/%b"), round(fail_logs * 100 / total_logs, 2)])
+            except Exception as ex:
+                print(str(ex))
 
     df = pd.DataFrame(values, columns=['building', 'date', 'val'])
 
@@ -65,7 +69,7 @@ def loss_period_signal_plot(data_init, data_end):
 
 def device_plot(devices, data_init, data_end):
     for x in devices:
-        table = "ixon_data_infraestructures"
+        table = "raw_data:ixon_data_infraestructures"
         hbase = happybase.Connection(**config['happybase_con'])
         h_table = hbase.table(table)
         list1 = []
@@ -93,7 +97,7 @@ def device_plot(devices, data_init, data_end):
         fig.suptitle(d_)
         plt.plot(df)
         # fig.show()
-        plt.savefig('./reports/IES Marta Mata/' + d_ + '.png')
+        plt.savefig(f'./reports/{devices[0]["building_name"]}_{d_}.png')
 
 
 def ranking_loses(data_init, data_end):
@@ -101,14 +105,18 @@ def ranking_loses(data_init, data_end):
                                                                "$lt": data_end}, "successful": False}},
                                           {"$group": {"_id": "$building_name", "count": {"$sum": 1}}},
                                           {"$sort": {"count": -1}}]))
-    df = pd.DataFrame(results)
+    if results:
+        df = pd.DataFrame(results)
+        print(df)
 
-    plt.figure(figsize=(10, 10), dpi=600)
-    sns.set(font_scale=0.5)
-    g = sns.barplot(data=df, x="_id", y="count")
+        plt.figure(figsize=(10, 10), dpi=600)
+        sns.set(font_scale=0.5)
 
-    plt.xticks(rotation=90)
-    plt.savefig('./reports/ranking_24_01_22_30_01_22.png')
+        g = sns.barplot(data=df, x="_id", y="count")
+
+        plt.xticks(rotation=90)
+        plt.show()
+        # plt.savefig('./reports/ranking_24_01_22_30_01_22.png')
 
 
 if __name__ == '__main__':
@@ -122,7 +130,7 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    config = get_json_config('../config.json')
+    config = get_json_config('./config.json')
     db = connection_mongo(config['mongo_db'])
     device_logs = db['ixon_logs']
     ixon_devices = db['ixon_devices']

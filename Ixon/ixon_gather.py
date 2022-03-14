@@ -31,7 +31,7 @@ if __name__ == '__main__':
     # MapReduce Config
 
     MOUNTS = 'YARN_CONTAINER_RUNTIME_DOCKER_MOUNTS=/dev/net/tun:/dev/net/tun:rw'
-    IMAGE = 'YARN_CONTAINER_RUNTIME_DOCKER_IMAGE=docker.tech.beegroup-cimne.com/mr/mr-ixon'
+    IMAGE = 'YARN_CONTAINER_RUNTIME_DOCKER_IMAGE=docker.tech.beegroup-cimne.com/mr/mr-ixon:latest'
     RUNTYPE = 'YARN_CONTAINER_RUNTIME_TYPE=docker'
 
     mr_job = MRIxonJob(args=[

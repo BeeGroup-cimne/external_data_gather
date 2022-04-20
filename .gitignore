@@ -8,3 +8,4 @@ logs/
 .env
 config.json
 reports/
+Ixon/utils.py

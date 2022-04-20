@@ -146,6 +146,7 @@ class MRIxonJob(MRJob):
                         netio = psutil.net_io_counters(pernic=True)
                         network_usage.insert_one(
                             {"from": 'infraestructures.cat', "building": value['deviceId'],
+                             "timestamp": datetime.datetime.utcnow(),
                              "bytes_sent": netio[NETWORK_INTERFACE].bytes_sent,
                              "bytes_recv": netio[NETWORK_INTERFACE].bytes_recv})
                     except Exception as ex:
@@ -185,6 +186,7 @@ class MRIxonJob(MRJob):
                     network_usage.insert_one(
                         {"from": 'infraestructures.cat', "building": value['deviceId'],
                          "bytes_sent": netio[NETWORK_INTERFACE].bytes_sent,
+                         "timestamp": datetime.datetime.utcnow(),
                          "bytes_recv": netio[NETWORK_INTERFACE].bytes_recv})
                 except Exception as ex:
                     sys.stderr.write(str(ex))

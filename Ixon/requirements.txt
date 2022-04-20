@@ -7,3 +7,4 @@ sodapy==2.1.0
 BAC0==21.2.25
 happybase==1.2.0
 pycrypto==2.6.1
+psutil==5.9.0

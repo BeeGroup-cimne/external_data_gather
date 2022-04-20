@@ -1,10 +1,5 @@
 import datetime
-import json
-import random
-import re
-import subprocess
 import sys
-import time
 
 import BAC0
 import requests
@@ -14,7 +9,10 @@ from mrjob.step import MRStep
 from Ixon import Ixon
 from utils import *
 
-NUM_VPNS_CONFIG = 5
+import psutil
+
+NUM_VPNS_CONFIG = 4
+NETWORK_INTERFACE = 'tap0'
 
 vpn_dict = {'0': '10.187.10.1', '1': '10.187.10.15', '2': '10.187.10.12', '3': '10.187.10.13', '4': '10.187.10.14'}
 
@@ -81,6 +79,7 @@ class MRIxonJob(MRJob):
 
         ixon_devices = db['ixon_devices']
         ixon_logs = db['ixon_logs']
+        network_usage = db['network_usage']
 
         for value in values:  # buildings
 
@@ -142,6 +141,16 @@ class MRIxonJob(MRJob):
                         time.sleep(0.2)
 
                 if not aux:
+
+                    try:
+                        netio = psutil.net_io_counters(pernic=True)
+                        network_usage.insert_one(
+                            {"from": 'infraestructures.cat', "building": value['deviceId'],
+                             "bytes_sent": netio[NETWORK_INTERFACE].bytes_sent,
+                             "bytes_recv": netio[NETWORK_INTERFACE].bytes_recv})
+                    except Exception as ex:
+                        sys.stderr.write(str(ex))
+
                     subprocess.call(["sudo", "pkill", "openvpn"])
                     bacnet.disconnect()
                     ixon_logs.insert_one(
@@ -170,6 +179,15 @@ class MRIxonJob(MRJob):
                         devices_logs.append({'device_name': device['name'],
                                              'device_id': device['object_id'], 'device_type': device['type'],
                                              'successful': False})
+
+                try:
+                    netio = psutil.net_io_counters(pernic=True)
+                    network_usage.insert_one(
+                        {"from": 'infraestructures.cat', "building": value['deviceId'],
+                         "bytes_sent": netio[NETWORK_INTERFACE].bytes_sent,
+                         "bytes_recv": netio[NETWORK_INTERFACE].bytes_recv})
+                except Exception as ex:
+                    sys.stderr.write(str(ex))
 
                 # End Connections (Bacnet and VPN)
                 bacnet.disconnect()

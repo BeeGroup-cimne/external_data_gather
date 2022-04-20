@@ -42,12 +42,12 @@ if __name__ == '__main__':
         '--file', 'vpn_files/vpn_template_1.ovpn',
         '--file', 'vpn_files/vpn_template_2.ovpn',
         '--file', 'vpn_files/vpn_template_3.ovpn',
-        '--file', 'vpn_files/vpn_template_4.ovpn',
+        # '--file', 'vpn_files/vpn_template_4.ovpn',
         '--file', 'config.json#config.json',
         '--jobconf', 'mapreduce.map.env={},{},{}'.format(MOUNTS, IMAGE, RUNTYPE),  # PRIVILEGED, DISABLE),
         '--jobconf', 'mapreduce.reduce.env={},{},{}'.format(MOUNTS, IMAGE, RUNTYPE),  # PRIVILEGED, DISABLE),
         '--jobconf', 'mapreduce.job.name=ixon_gather',
-        '--jobconf', 'mapreduce.job.reduces=5'
+        '--jobconf', 'mapreduce.job.reduces=4'
     ])
 
     with mr_job.make_runner() as runner:

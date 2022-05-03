@@ -97,7 +97,7 @@ def device_plot(devices, data_init, data_end):
         fig.suptitle(d_)
         plt.plot(df)
         # fig.show()
-        plt.savefig(f'./reports/{devices[0]["building_name"]}_{d_}.png')
+        plt.savefig(f'./reports/{devices[0]["building_name"]}/{d_}.png')
 
 
 def ranking_loses(data_init, data_end):
@@ -119,6 +119,59 @@ def ranking_loses(data_init, data_end):
         # plt.savefig('./reports/ranking_24_01_22_30_01_22.png')
 
 
+def network_barplot(data_init, data_end):
+    for id in building_ids:
+        l = []
+        for i in pd.date_range(data_init, data_end, freq="1D"):
+            try:
+                aux_end = i.replace(hour=23, minute=59, second=59)
+                list_values = list(network_usage.find({"building": id, "timestamp": {"$gte": i, "$lt": aux_end}},
+                                                      {"bytes_recv": 1, "bytes_sent": 1, "_id": 0}))
+                if list_values:
+                    df = pd.DataFrame().from_records(list_values)
+
+                    x = df.sum()
+                    l.append({"date": i.date(), "bytes_sent": x['bytes_sent'], 'bytes_recv': x['bytes_recv']})
+            except:
+                pass
+        if l:
+            print(id)
+            df = pd.DataFrame(l)
+            df.set_index('date', inplace=True)
+
+            ax = df.plot(stacked=True, kind='bar')
+
+            plt.xlabel('Days')
+            plt.ylabel('Bytes')
+            plt.title(id)
+
+            plt.xticks(rotation=45)
+            plt.ticklabel_format(style='plain', axis='y')
+            plt.tight_layout()
+            plt.show()
+
+
+def network_usage_plot(date_init, date_end):
+    for id in building_ids:
+        list_values = list(network_usage.find({"building": id, "timestamp": {"$gte": date_init, "$lt": date_end}},
+                                              {"bytes_recv": 1, "bytes_sent": 1, "_id": 0, "timestamp": 1}))
+        if list_values:
+            df = pd.DataFrame.from_records(list_values)
+            # df['total'] = df['bytes_recv'] + df['bytes_sent']
+            df.set_index('timestamp', inplace=True)
+            df.plot()
+
+            plt.xlabel('Days')
+            plt.ylabel('Bytes')
+            plt.title(id)
+
+            plt.xticks(rotation=45)
+            plt.ticklabel_format(style='plain', axis='y')
+            plt.tight_layout()
+            # plt.figure(figsize=(10, 10), dpi=600)
+            plt.show()
+
+
 if __name__ == '__main__':
     # Arguments
     parser = argparse.ArgumentParser()
@@ -134,6 +187,7 @@ if __name__ == '__main__':
     db = connection_mongo(config['mongo_db'])
     device_logs = db['ixon_logs']
     ixon_devices = db['ixon_devices']
+    network_usage = db['network_usage']
     building_names = []
     building_ids = []
 
@@ -160,3 +214,9 @@ if __name__ == '__main__':
 
     if args.type == 'ranking':
         ranking_loses(data_init, data_end)
+
+    if args.type == 'network':
+        network_barplot(data_init, data_end)
+
+    if args.type == 'network_usage':
+        network_usage_plot(data_init, data_end)

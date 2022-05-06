@@ -11,11 +11,14 @@ from matplotlib import pyplot as plt
 from utils import connection_mongo, get_json_config
 
 
-def loss_period_bar_plot(buildings, buildings_type, date_init, date_end):
-    pass
+def create_folder(path):
+    if not os.path.exists(path):
+        os.makedirs(path)
 
-    values = []
+
+def loss_period_bar_plot(buildings, buildings_type, date_init, date_end):
     for building in buildings:
+        values = []
         for i in pd.date_range(date_init, date_end, freq="1D"):
             aux_date_end = i.replace(hour=23, minute=59, second=59)
 
@@ -52,33 +55,43 @@ def loss_period_bar_plot(buildings, buildings_type, date_init, date_end):
         plt.savefig(f'./reports/loss_rate/{building}.png')
 
 
-def create_folder(path):
-    if not os.path.exists(path):
-        os.makedirs(path)
+def loss_period_signal_plot(buildings, buildings_type, date_init, date_end):
+    aggregate_buildings = []
+    create_folder(f'reports/loss_period/')
+    for building in buildings:
+        values = []
+        for i in pd.date_range(date_init, date_end, freq="1D"):
+            aux_end = i.replace(hour=23, minute=59, second=59)
 
+            total_logs = device_logs.find(
+                {f"building_{buildings_type}": building, "date": {"$gte": i, "$lt": aux_end}},
+                {f"building_{buildings_type}": 1, "date": 1, "_id": 0, "successful": 1})
+            values += list(total_logs)
 
-# def loss_period_signal_plot(data_init, data_end):
-# values = []
-# for building_name in building_names:
-#     for i in pd.date_range(data_init, data_end, freq="1D"):
-#         aux_end = i.replace(hour=23, minute=59, second=59)
-#
-#         total_logs = device_logs.find(
-#             {"building_name": building_name, "date": {"$gte": i,
-#                                                       "$lt": aux_end}},
-#             {"building_name": 1, "date": 1, "_id": 0, "successful": 1})
-#         values += list(total_logs)
-#
-# df = pd.DataFrame(values)
-# df['date'] = pd.to_datetime(df['date'])
-# df['date'] = df['date'].dt.strftime('%H:%M')
-#
-# plt.figure(figsize=(10, 10), dpi=80)
-# sns.set(font_scale=0.5)
-# g = sns.lineplot(data=df, x="date", y="successful", hue="building_name")
-#
-# plt.xticks(rotation=90)
-# plt.show()
+        df = pd.DataFrame(values)
+        df['date'] = pd.to_datetime(df['date'])
+        df['date'] = df['date'].dt.strftime('%H:%M')
+        aggregate_buildings.append(df)
+
+        sns.set(font_scale=0.5)
+        g = sns.lineplot(data=df, x="date", y="successful", hue=f"building_{buildings_type}")
+        plt.xticks(rotation=45)
+        plt.ylim(0)
+        plt.ticklabel_format(style='plain', axis='y')
+        plt.tight_layout()
+        plt.savefig(f'./reports/loss_rate/{building}.png')
+
+    df = pd.concat(aggregate_buildings)
+    fig, ax = plt.subplots()
+
+    for name in buildings:
+        ax.plot(df[df[f"building_{buildings_type}"] == name].date,
+                df[df[f"building_{buildings_type}"] == name].successful, label=name)
+
+    ax.set_xlabel("Date")
+    ax.set_ylabel("Successful")
+    ax.legend(loc='best')
+    fig.savefig(f'./reports/loss_rate/aggregate_buildings.png')
 
 
 # def device_plot(devices, data_init, data_end):
@@ -209,7 +222,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     # Database Config
-    config = get_json_config('./config.json')
+    config = get_json_config('/Users/francesc/Desktop/external_data_gather/Ixon/config.json')
     db = connection_mongo(config['mongo_db'])
 
     device_logs = db['ixon_logs']
@@ -232,7 +245,7 @@ if __name__ == '__main__':
 
     if args.type == 'loss_period':
         loss_period_bar_plot(buildings, args.buildings_type, date_init, date_end)
-        # loss_period_signal_plot()
+        loss_period_signal_plot(buildings, args.buildings_type, date_init, date_end)
 
     # if args.type == 'day':
     #     loss_period_bar_plot(data_init, data_end)

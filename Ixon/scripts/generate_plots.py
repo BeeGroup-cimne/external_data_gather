@@ -204,6 +204,28 @@ def network_usage_plot(buildings, date_init, date_end):
             plt.savefig(f'reports/network_traffic/{id["building_name"]}_{date_init}_{date_end}.png')
 
 
+def network_traffic_per_devices(buildings, date_init, date_end):
+    _buildings = [ixon_devices.find_one({f"building_{args.buildings_type}": building},
+                                        {'building_name': 1, 'building_id': 1, '_id': 0}) for building in buildings]
+
+    for building in _buildings:
+        data = []
+        for i in pd.date_range(date_init, date_end, freq="1D"):
+            try:
+                aux_end = i.replace(hour=23, minute=59, second=59)
+                list_values = list(
+                    network_usage.find({"building": building['building_id'], "timestamp": {"$gte": i, "$lt": aux_end}},
+                                       {"bytes_recv": 1, "bytes_sent": 1, "_id": 0}))
+                if list_values:
+                    df = pd.DataFrame().from_records(list_values)
+                    x = df.sum()
+                    data.append({"date": i.date(),
+                                 "total": (x['bytes_sent'] + x['bytes_recv']) / ixon_devices.count_documents(
+                                     {"building_id": building['building_id']})})
+            except:
+                pass
+
+
 if __name__ == '__main__':
     # Arguments
     parser = argparse.ArgumentParser()
@@ -269,3 +291,6 @@ if __name__ == '__main__':
         _buildings = [ixon_devices.find_one({f"building_{args.buildings_type}": building},
                                             {'building_name': 1, 'building_id': 1, '_id': 0}) for building in buildings]
         network_usage_plot(_buildings, date_init, date_end)
+
+    if args.type == 'network_traffic_devices':
+        network_traffic_per_devices(buildings, date_init, date_end)

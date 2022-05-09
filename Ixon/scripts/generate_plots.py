@@ -205,31 +205,61 @@ def network_usage_plot(buildings, date_init, date_end):
 
 
 def network_traffic_per_devices(buildings, date_init, date_end):
-    _buildings = [ixon_devices.find_one({f"building_{args.buildings_type}": building},
-                                        {'building_name': 1, 'building_id': 1, '_id': 0}) for building in buildings]
+    _buildings = get_buildings(buildings)
 
     for building in _buildings:
-        data = []
-        for i in pd.date_range(date_init, date_end, freq="1D"):
-            try:
-                aux_end = i.replace(hour=23, minute=59, second=59)
-                list_values = list(
-                    network_usage.find({"building": building['building_id'], "timestamp": {"$gte": i, "$lt": aux_end}},
-                                       {"bytes_recv": 1, "bytes_sent": 1, "_id": 0}))
-                if list_values:
-                    df = pd.DataFrame().from_records(list_values)
-                    x = df.sum()
-                    data.append({"date": i.date(),
-                                 "total": (x['bytes_sent'] + x['bytes_recv']) / ixon_devices.count_documents(
-                                     {"building_id": building['building_id']})})
-            except:
-                pass
+        df = pd.DataFrame(list(
+            network_usage.find({"building": building['building_id'], "timestamp": {"$gte": date_init, "$lt": date_end}},
+                               {"bytes_recv": 1, "bytes_sent": 1, "_id": 0, "timestamp": 1})))
+        df.set_index("timestamp", inplace=True)
+        df.sort_index()
+
+        num_devices = ixon_devices.count_documents(
+            {f"building_{args.buildings_type}": building[f"building_{args.buildings_type}"]})
+
+        df = df.resample('D').sum()
+        df['total'] = df['bytes_sent'] + df['bytes_recv']
+        df['device_mean'] = df['total'] / num_devices
+        df['device_mean'] = df['device_mean'].apply(np.ceil)
+
+        ax = df[['device_mean']].plot(kind='bar')
+        ax.bar_label(ax.containers[0])
+
+        plt.xlabel('Days')
+        plt.ylabel('Bytes/device')
+        plt.title(f"{building['building_name']}")
+
+        plt.xticks(rotation=45)
+        ax.set_xticklabels([pandas_datetime.strftime("%Y-%m-%d") for pandas_datetime in df.index])
+        plt.ticklabel_format(style='plain', axis='y')
+        plt.tight_layout()
+
+        create_folder(f'reports/network_traffic_device/')
+        plt.savefig(f'reports/network_traffic_device/{building["building_name"]}_{date_init}_{date_end}.png')
+
+
+def loss_rate_per_building(buildings, date_init, date_end):
+    _buildings = get_buildings(buildings)
+
+    for building in _buildings:
+        logs = list(device_logs.find(
+            {"building_id": building['building_id'], "date": {"$gte": date_init, "$lt": date_end}}, {"_id": 0}))
+
+        df = pd.DataFrame(logs)
+        df = df[['date', 'successful']]
+        df.set_index('date', inplace=True)
+        df.resample('D').sum()
+
+def get_buildings(buildings):
+    return [ixon_devices.find_one({f"building_{args.buildings_type}": building},
+                                  {'building_name': 1, 'building_id': 1, '_id': 0}) for building in buildings]
 
 
 if __name__ == '__main__':
     # Arguments
     parser = argparse.ArgumentParser()
-    type_list = ['loss_period', 'network_aggregate_daily_traffic', 'network_traffic', 'devices_data', 'loss_ranking']
+    type_list = ['loss_period', 'network_aggregate_daily_traffic', 'network_traffic', 'devices_data', 'loss_ranking',
+                 'network_traffic_devices', 'loss_rate']
 
     parser.add_argument("-t", "--type", required=True, type=str, choices=type_list,
                         help="Type of analysis that you want")
@@ -294,3 +324,6 @@ if __name__ == '__main__':
 
     if args.type == 'network_traffic_devices':
         network_traffic_per_devices(buildings, date_init, date_end)
+
+    if args.type == 'loss_rate':
+        loss_rate_per_building(buildings, date_init, date_end)

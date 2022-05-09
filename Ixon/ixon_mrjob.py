@@ -116,8 +116,18 @@ class MRIxonJob(MRJob):
                     interfaces_list = interfaces.stdout.decode(encoding="utf-8").split(" ")
                     connected = vpn_dict[str(key)] in interfaces_list
                     if time.time() - init_time > time_out:
-                        # TODO: Alarma connexio perduda.
-                        raise Exception("VPN Connection: Time out exceded.")
+                        break
+
+                if not connected:
+                    ixon_logs.insert_one(
+                        {'building_id': value['deviceId'], "building_name": building_devices[0]['building_name'],
+                         "info": "VPN Connection: Time out exceeded.",
+                         "date": datetime.datetime.utcnow(), "successful": False})
+                    try:
+                        subprocess.call(["sudo", "pkill", "openvpn"])
+                    except Exception as ex:
+                        sys.stderr.write(str(ex))
+                    continue
 
                 vpn_ip = vpn_dict[str(key)]
                 sys.stderr.write(str(vpn_ip))
@@ -156,7 +166,7 @@ class MRIxonJob(MRJob):
                     bacnet.disconnect()
                     ixon_logs.insert_one(
                         {'building_id': value['deviceId'], "building_name": building_devices[0]['building_name'],
-                         "devices_logs": devices_logs,
+                         "info": "BACnet Connection: Time out exceeded.",
                          "date": datetime.datetime.utcnow(), "successful": False})
                     continue
 
@@ -175,10 +185,12 @@ class MRIxonJob(MRJob):
 
                         devices_logs.append({'device_name': device['name'],
                                              'device_id': device['object_id'], 'device_type': device['type'],
+                                             'info': 'OK',
                                              'successful': True})
                     except Exception as ex:
                         devices_logs.append({'device_name': device['name'],
                                              'device_id': device['object_id'], 'device_type': device['type'],
+                                             'info': f"Device {device['name']} fail.",
                                              'successful': False})
 
                 try:
@@ -198,6 +210,7 @@ class MRIxonJob(MRJob):
                 ixon_logs.insert_one(
                     {'building_id': value['deviceId'], "building_name": building_devices[0]['building_name'],
                      "devices_logs": devices_logs,
+                     "info": "OK",
                      "date": datetime.datetime.utcnow(), "successful": True})
 
                 if results:

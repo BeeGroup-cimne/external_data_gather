@@ -1,6 +1,6 @@
 import argparse
 import os.path
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import happybase
 import numpy as np
@@ -9,6 +9,8 @@ import seaborn as sns
 from matplotlib import pyplot as plt
 
 from utils import connection_mongo, get_json_config
+
+NUM_REQ_PER_DAY = 4 * 24
 
 
 def create_folder(path):
@@ -245,10 +247,39 @@ def loss_rate_per_building(buildings, date_init, date_end):
         logs = list(device_logs.find(
             {"building_id": building['building_id'], "date": {"$gte": date_init, "$lt": date_end}}, {"_id": 0}))
 
+        # Without retries
         df = pd.DataFrame(logs)
-        df = df[['date', 'successful']]
+        df.sort_values(by=['date'], inplace=True)
+        df['shift'] = df['date'].shift(-1)
+        df['diff'] = df['shift'] - df['date']
+        df = df[df['diff'] > timedelta(minutes=7, seconds=30)]
         df.set_index('date', inplace=True)
-        df.resample('D').sum()
+        df = df.resample('D').sum()
+        df['value'] = round(df['successful'] * 100 / NUM_REQ_PER_DAY)
+
+        ax = df.plot()
+        # ax.bar_label(ax.containers[0])
+        #
+        # plt.xlabel('Days')
+        # plt.ylabel('Bytes/device')
+        # plt.title(f"{building['building_name']}")
+        #
+        # plt.xticks(rotation=45)
+        # ax.set_xticklabels([pandas_datetime.strftime("%Y-%m-%d") for pandas_datetime in df.index])
+        # plt.ticklabel_format(style='plain', axis='y')
+        # plt.tight_layout()
+        #
+        # create_folder(f'reports/network_traffic_device/')
+        # plt.savefig(f'reports/network_traffic_device/{building["building_name"]}_{date_init}_{date_end}.png')
+
+        # With retries
+        df_r = pd.DataFrame(logs)
+
+        df_r.set_index('date', inplace=True)
+        df_r['count'] = 1
+        df_r = df_r.resample('D').sum()
+        df_r['value'] = round(df_r['successful'] * 100 / df_r['count'])
+
 
 def get_buildings(buildings):
     return [ixon_devices.find_one({f"building_{args.buildings_type}": building},

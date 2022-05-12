@@ -252,33 +252,36 @@ def loss_rate_per_building(buildings, date_init, date_end):
         df.sort_values(by=['date'], inplace=True)
         df['shift'] = df['date'].shift(-1)
         df['diff'] = df['shift'] - df['date']
-        df = df[df['diff'] > timedelta(minutes=7, seconds=30)]
+        df = df[df['diff'] > timedelta(minutes=10)]  # avoid retries
         df.set_index('date', inplace=True)
         df = df.resample('D').sum()
         df['value'] = round(df['successful'] * 100 / NUM_REQ_PER_DAY)
 
-        ax = df.plot()
-        # ax.bar_label(ax.containers[0])
-        #
-        # plt.xlabel('Days')
-        # plt.ylabel('Bytes/device')
-        # plt.title(f"{building['building_name']}")
-        #
-        # plt.xticks(rotation=45)
-        # ax.set_xticklabels([pandas_datetime.strftime("%Y-%m-%d") for pandas_datetime in df.index])
-        # plt.ticklabel_format(style='plain', axis='y')
-        # plt.tight_layout()
-        #
-        # create_folder(f'reports/network_traffic_device/')
-        # plt.savefig(f'reports/network_traffic_device/{building["building_name"]}_{date_init}_{date_end}.png')
+        generate_plot(df['value'], building, date_init, date_end, 'reports/loss_rate_per_building_without_retries/',
+                      'Days', '[REQ.] Successful (%)')
 
-        # With retries
+        # Raw
         df_r = pd.DataFrame(logs)
 
         df_r.set_index('date', inplace=True)
-        df_r['count'] = 1
+        df_r.sort_index(inplace=True)
         df_r = df_r.resample('D').sum()
-        df_r['value'] = round(df_r['successful'] * 100 / df_r['count'])
+        generate_plot(df_r, building, date_init, date_end, 'reports/loss_rate_per_building_raw/', 'Days', 'Nº REQ.')
+
+
+def generate_plot(df, building, date_init, date_end, path, xlabel, ylabel):
+    ax = df.plot(kind='bar')
+    ax.bar_label(ax.containers[0])
+    plt.xlabel(xlabel)
+    plt.ylabel(ylabel)
+    plt.title(f"{building['building_name']}")
+    plt.xticks(rotation=45)
+    ax.set_xticklabels([pandas_datetime.strftime("%Y-%m-%d") for pandas_datetime in df.index])
+    plt.ticklabel_format(style='plain', axis='y')
+    plt.tight_layout()
+
+    create_folder(f'{path}')
+    plt.savefig(f'{path}/{building["building_name"]}_{date_init}_{date_end}.png')
 
 
 def get_buildings(buildings):

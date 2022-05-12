@@ -289,11 +289,52 @@ def get_buildings(buildings):
                                   {'building_name': 1, 'building_id': 1, '_id': 0}) for building in buildings]
 
 
+def loss_rate_per_device(buildings, date_init, date_end):
+    _buildings = get_buildings(buildings)
+
+    for building in _buildings:
+        logs = list(device_logs.find(
+            {"building_id": building['building_id'],
+             "date": {"$gte": date_init, "$lt": date_end}},
+            {"_id": 0, 'date': 1, 'devices_logs': 1, 'successful': 1}))
+
+        res = []
+
+        for i in logs:
+            aux_df = pd.DataFrame(i['devices_logs'])
+            if i['successful']:
+                fail = aux_df[aux_df['successful'].__eq__(False)].shape[0]
+                success = aux_df[aux_df['successful'].__eq__(True)].shape[0]
+                res.append({"date": i['date'], "fail": fail, 'success': success, 'num_devices': aux_df.shape[0]})
+            else:
+                res.append({"date": i['date'], "fail": 1, 'success': 0, 'num_devices': 1})  # all devices fail
+
+        df = pd.DataFrame(res)
+        df.set_index('date', inplace=True)
+        df.sort_index(inplace=True)
+        df['calc'] = round((df['success'] * 100) / df['num_devices'], 1)
+        df = df.resample('D').mean()
+
+        ax = df.plot(kind='bar', y='calc')
+        ax.bar_label(ax.containers[0])
+        plt.xlabel('Days')
+        plt.ylabel('Success (%)')
+        num_devices = ixon_devices.count_documents({"building_id": building['building_id']})
+        plt.title(f"{building['building_name']} - Nº Devices: {num_devices}")
+        plt.xticks(rotation=45)
+        ax.set_xticklabels([pandas_datetime.strftime("%Y-%m-%d") for pandas_datetime in df.index])
+        plt.ticklabel_format(style='plain', axis='y')
+        plt.tight_layout()
+
+        create_folder(f'reports/loss_rate_per_device/')
+        plt.savefig(f'reports/loss_rate_per_device//{building["building_name"]}_{date_init}_{date_end}.png')
+
+
 if __name__ == '__main__':
     # Arguments
     parser = argparse.ArgumentParser()
     type_list = ['loss_period', 'network_aggregate_daily_traffic', 'network_traffic', 'devices_data', 'loss_ranking',
-                 'network_traffic_devices', 'loss_rate']
+                 'network_traffic_devices', 'loss_rate', 'loss_rate_devices']
 
     parser.add_argument("-t", "--type", required=True, type=str, choices=type_list,
                         help="Type of analysis that you want")
@@ -361,3 +402,6 @@ if __name__ == '__main__':
 
     if args.type == 'loss_rate':
         loss_rate_per_building(buildings, date_init, date_end)
+
+    if args.type == 'loss_rate_devices':
+        loss_rate_per_device(buildings, date_init, date_end)

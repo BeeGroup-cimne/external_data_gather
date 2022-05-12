@@ -196,7 +196,7 @@ def network_usage_plot(buildings, date_init, date_end):
 
             plt.xlabel('Days')
             plt.ylabel('Bytes')
-            plt.title(id)
+            plt.title(id["building_name"])
 
             plt.xticks(rotation=45)
             plt.ticklabel_format(style='plain', axis='y')
@@ -252,7 +252,7 @@ def loss_rate_per_building(buildings, date_init, date_end):
         df.sort_values(by=['date'], inplace=True)
         df['shift'] = df['date'].shift(-1)
         df['diff'] = df['shift'] - df['date']
-        df = df[df['diff'] > timedelta(minutes=10)]  # avoid retries
+        df = df[df['diff'] > timedelta(minutes=14, seconds=30)]  # avoid retries
         df.set_index('date', inplace=True)
         df = df.resample('D').sum()
         df['value'] = round(df['successful'] * 100 / NUM_REQ_PER_DAY)
@@ -270,6 +270,7 @@ def loss_rate_per_building(buildings, date_init, date_end):
 
 
 def generate_plot(df, building, date_init, date_end, path, xlabel, ylabel):
+    plt.clf()
     ax = df.plot(kind='bar')
     ax.bar_label(ax.containers[0])
     plt.xlabel(xlabel)
@@ -328,6 +329,7 @@ def loss_rate_per_device(buildings, date_init, date_end):
 
         create_folder(f'reports/loss_rate_per_device/')
         plt.savefig(f'reports/loss_rate_per_device//{building["building_name"]}_{date_init}_{date_end}.png')
+        plt.clf()
 
 
 if __name__ == '__main__':
@@ -336,7 +338,7 @@ if __name__ == '__main__':
     type_list = ['loss_period', 'network_aggregate_daily_traffic', 'network_traffic', 'devices_data', 'loss_ranking',
                  'network_traffic_devices', 'loss_rate', 'loss_rate_devices']
 
-    parser.add_argument("-t", "--type", required=True, type=str, choices=type_list,
+    parser.add_argument("-t", "--type", required=True, type=str,
                         help="Type of analysis that you want")
 
     parser.add_argument("-i", "--init_date", required=True, type=str,
@@ -375,33 +377,41 @@ if __name__ == '__main__':
     else:
         buildings = args.buildings.split(',')
 
-    if args.type == 'loss_period':
+    types = args.type.split(',')
+    if 'loss_period' in types:
+        print(f"--- Generating Loss Period Analysis ---")
         loss_period_bar_plot(buildings, args.buildings_type, date_init, date_end)
         loss_period_signal_plot(buildings, args.buildings_type, date_init, date_end)
 
-    if args.type == 'devices_data':
+    if 'devices_data' in types:
+        print(f"--- Generating Devices Time Series ---")
         for building in buildings:
             devices = list(ixon_devices.find({f"building_{args.buildings_type}": building}, {'_id': 0}))
             device_plot(list(devices), date_init, date_end)
 
-    if args.type == 'loss_ranking':
+    if 'loss_ranking' in types:
         ranking_loses(args.buildings_type, date_init, date_end)
 
-    if args.type == 'network_aggregate_daily_traffic':
+    if 'network_aggregate_daily_traffic' in types:
+        print(f"--- Generating Network Aggregate Daily Traffic ---")
         _buildings = [ixon_devices.find_one({f"building_{args.buildings_type}": building},
                                             {'building_name': 1, 'building_id': 1, '_id': 0}) for building in buildings]
         network_daily_traffic(_buildings, date_init, date_end)
 
-    if args.type == 'network_traffic':
+    if 'network_traffic' in types:
+        print(f"--- Generating Network Traffic ---")
         _buildings = [ixon_devices.find_one({f"building_{args.buildings_type}": building},
                                             {'building_name': 1, 'building_id': 1, '_id': 0}) for building in buildings]
         network_usage_plot(_buildings, date_init, date_end)
 
-    if args.type == 'network_traffic_devices':
+    if 'network_traffic_devices' in types:
+        print(f"--- Generating Network Devices Traffic ---")
         network_traffic_per_devices(buildings, date_init, date_end)
 
-    if args.type == 'loss_rate':
+    if 'loss_rate' in types:
+        print(f"--- Generating Loss Rate Per Building ---")
         loss_rate_per_building(buildings, date_init, date_end)
 
-    if args.type == 'loss_rate_devices':
+    if 'loss_rate_devices' in types:
+        print(f"--- Generating Loss Rate Per Devices ---")
         loss_rate_per_device(buildings, date_init, date_end)

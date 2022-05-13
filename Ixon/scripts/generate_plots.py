@@ -3,8 +3,10 @@ import os.path
 from datetime import datetime, timedelta
 
 import happybase
+import markdown
 import numpy as np
 import pandas as pd
+import pdfkit
 import seaborn as sns
 from matplotlib import pyplot as plt
 
@@ -332,11 +334,31 @@ def loss_rate_per_device(buildings, date_init, date_end):
         plt.clf()
 
 
+def generate_report(building, num_devices, date_init, date_end):
+    with open('/Users/francesc/Desktop/external_data_gather/Ixon/scripts/report_template.md', 'r') as f:
+        text = f.read()
+
+        data = {
+            "$date_init_d$": f"{date_init.date()}",
+            '$date_end_d$': f"{date_end.date()}",
+            "$date_init$": f"{date_init}",
+            '$date_end$': f"{date_end}",
+            '$building_name$': building['building_name'],
+            '$num_devices$': str(num_devices)
+        }
+
+        for key, value in data.items():
+            text = text.replace(key, value)
+
+    return text
+
+
 if __name__ == '__main__':
     # Arguments
     parser = argparse.ArgumentParser()
+    # reports,devices_data,network_aggregate_daily_traffic,network_traffic,network_traffic_devices,loss_rate,loss_rate_devices
     type_list = ['loss_period', 'network_aggregate_daily_traffic', 'network_traffic', 'devices_data', 'loss_ranking',
-                 'network_traffic_devices', 'loss_rate', 'loss_rate_devices']
+                 'network_traffic_devices', 'loss_rate', 'loss_rate_devices', 'reports']
 
     parser.add_argument("-t", "--type", required=True, type=str,
                         help="Type of analysis that you want")
@@ -415,3 +437,17 @@ if __name__ == '__main__':
     if 'loss_rate_devices' in types:
         print(f"--- Generating Loss Rate Per Devices ---")
         loss_rate_per_device(buildings, date_init, date_end)
+
+    if 'reports' in types:
+        print(f"--- Generating Report ---")
+        _buildings = [ixon_devices.find_one({f"building_{args.buildings_type}": building},
+                                            {'building_name': 1, 'building_id': 1, '_id': 0}) for building in buildings]
+        text = ""
+
+        for building in _buildings:
+            num_devices = ixon_devices.count_documents({"building_id": building['building_id']})
+            text += generate_report(building, num_devices, date_init, date_end) + '\n\n\n'
+
+        html = markdown.markdown(text)
+
+        pdfkit.from_string(html, output_path='out.pdf', verbose=True, options={"enable-local-file-access": True})

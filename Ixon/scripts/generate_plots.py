@@ -183,7 +183,7 @@ def network_daily_traffic(buildings, data_init, data_end):
             plt.tight_layout()
 
             create_folder(f'reports/network_aggregate_daily_traffic/')
-            plt.savefig(f'reports/network_aggregate_daily_traffic/{id["building_name"]}.png')
+            plt.savefig(f'reports/network_aggregate_daily_traffic/{id["building_id"]}.png')
 
 
 def network_usage_plot(buildings, date_init, date_end):
@@ -205,7 +205,7 @@ def network_usage_plot(buildings, date_init, date_end):
             plt.tight_layout()
 
             create_folder(f'reports/network_traffic/')
-            plt.savefig(f'reports/network_traffic/{id["building_name"]}_{date_init}_{date_end}.png')
+            plt.savefig(f'reports/network_traffic/{id["building_id"]}.png')
 
 
 def network_traffic_per_devices(buildings, date_init, date_end):
@@ -239,7 +239,7 @@ def network_traffic_per_devices(buildings, date_init, date_end):
         plt.tight_layout()
 
         create_folder(f'reports/network_traffic_device/')
-        plt.savefig(f'reports/network_traffic_device/{building["building_name"]}_{date_init}_{date_end}.png')
+        plt.savefig(f'reports/network_traffic_device/{building["building_id"]}.png')
 
 
 def loss_rate_per_building(buildings, date_init, date_end):
@@ -284,7 +284,7 @@ def generate_plot(df, building, date_init, date_end, path, xlabel, ylabel):
     plt.tight_layout()
 
     create_folder(f'{path}')
-    plt.savefig(f'{path}/{building["building_name"]}_{date_init}_{date_end}.png')
+    plt.savefig(f'{path}/{building["building_id"]}.png')
 
 
 def get_buildings(buildings):
@@ -330,12 +330,12 @@ def loss_rate_per_device(buildings, date_init, date_end):
         plt.tight_layout()
 
         create_folder(f'reports/loss_rate_per_device/')
-        plt.savefig(f'reports/loss_rate_per_device//{building["building_name"]}_{date_init}_{date_end}.png')
+        plt.savefig(f'reports/loss_rate_per_device/{building["building_id"]}.png')
         plt.clf()
 
 
 def generate_report(building, num_devices, date_init, date_end):
-    with open('/Users/francesc/Desktop/external_data_gather/Ixon/scripts/report_template.md', 'r') as f:
+    with open('./scripts/report_template.md', 'r') as f:
         text = f.read()
 
         data = {
@@ -344,6 +344,7 @@ def generate_report(building, num_devices, date_init, date_end):
             "$date_init$": f"{date_init}",
             '$date_end$': f"{date_end}",
             '$building_name$': building['building_name'],
+            '$building_id$': building['building_id'],
             '$num_devices$': str(num_devices)
         }
 
@@ -356,7 +357,7 @@ def generate_report(building, num_devices, date_init, date_end):
 if __name__ == '__main__':
     # Arguments
     parser = argparse.ArgumentParser()
-    # reports,devices_data,network_aggregate_daily_traffic,network_traffic,network_traffic_devices,loss_rate,loss_rate_devices
+    # network_aggregate_daily_traffic,network_traffic,network_traffic_devices,loss_rate,loss_rate_devices,reports
     type_list = ['loss_period', 'network_aggregate_daily_traffic', 'network_traffic', 'devices_data', 'loss_ranking',
                  'network_traffic_devices', 'loss_rate', 'loss_rate_devices', 'reports']
 
@@ -378,7 +379,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     # Database Config
-    config = get_json_config('/Users/francesc/Desktop/external_data_gather/Ixon/config.json')
+    config = get_json_config('config.json')
     db = connection_mongo(config['mongo_db'])
 
     device_logs = db['ixon_logs']
@@ -442,12 +443,10 @@ if __name__ == '__main__':
         print(f"--- Generating Report ---")
         _buildings = [ixon_devices.find_one({f"building_{args.buildings_type}": building},
                                             {'building_name': 1, 'building_id': 1, '_id': 0}) for building in buildings]
-        text = ""
 
         for building in _buildings:
             num_devices = ixon_devices.count_documents({"building_id": building['building_id']})
-            text += generate_report(building, num_devices, date_init, date_end) + '\n\n\n'
-
-        html = markdown.markdown(text)
-
-        pdfkit.from_string(html, output_path='out.pdf', verbose=True, options={"enable-local-file-access": True})
+            text = generate_report(building, num_devices, date_init, date_end)
+            html = markdown.markdown(text)
+            pdfkit.from_string(html, output_path=f"reports/{building['building_name']}.pdf", verbose=True,
+                               options={"enable-local-file-access": True, 'encoding': 'UTF-8'})

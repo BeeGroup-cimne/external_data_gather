@@ -151,46 +151,37 @@ def ranking_loses(buildings_type, date_init, date_end):
         plt.savefig(f'reports/loss_ranking/{building}_{date_init}_{date_end}.png')
 
 
-def network_daily_traffic(buildings, data_init, data_end):
+def network_daily_traffic(buildings, date_init, date_end):
     for id in buildings:
-        l = []
-        for i in pd.date_range(data_init, data_end, freq="1D"):
-            try:
-                aux_end = i.replace(hour=23, minute=59, second=59)
-                list_values = list(
-                    network_usage.find({"building": id['building_id'], "timestamp": {"$gte": i, "$lt": aux_end}},
-                                       {"bytes_recv": 1, "bytes_sent": 1, "_id": 0}))
-                if list_values:
-                    df = pd.DataFrame().from_records(list_values)
+        df = pd.DataFrame(list(
+            network_usage.find(
+                {"building": id['building_id'], "timestamp": {"$gte": date_init, "$lt": date_end + timedelta(days=1)}},
+                {"bytes_recv": 1, "bytes_sent": 1, "_id": 0, "timestamp": 1})))
 
-                    x = df.sum()
-                    l.append({"date": i.date(), "bytes_sent": x['bytes_sent'], 'bytes_recv': x['bytes_recv']})
-            except:
-                pass
+        df.set_index('timestamp', inplace=True)
+        df.sort_index(inplace=True)
+        df = df.resample('1D').sum()
 
-        if l:
-            df = pd.DataFrame(l)
-            df.set_index('date', inplace=True)
+        ax = df.plot(stacked=True, kind='bar')
 
-            ax = df.plot(stacked=True, kind='bar')
+        plt.xlabel('Days')
+        plt.ylabel('Bytes')
+        plt.title(id['building_name'])
 
-            plt.xlabel('Days')
-            plt.ylabel('Bytes')
-            plt.title(id['building_name'])
+        plt.xticks(rotation=45)
+        plt.ticklabel_format(style='plain', axis='y')
+        plt.tight_layout()
 
-            plt.xticks(rotation=45)
-            plt.ticklabel_format(style='plain', axis='y')
-            plt.tight_layout()
-
-            create_folder(f'reports/network_aggregate_daily_traffic/')
-            plt.savefig(f'reports/network_aggregate_daily_traffic/{id["building_id"]}.png')
+        create_folder(f'reports/network_aggregate_daily_traffic/')
+        plt.savefig(f'reports/network_aggregate_daily_traffic/{id["building_id"]}.png')
 
 
 def network_usage_plot(buildings, date_init, date_end):
     for id in buildings:
         list_values = list(
-            network_usage.find({"building": id['building_id'], "timestamp": {"$gte": date_init, "$lt": date_end}},
-                               {"bytes_recv": 1, "bytes_sent": 1, "_id": 0, "timestamp": 1}))
+            network_usage.find(
+                {"building": id['building_id'], "timestamp": {"$gte": date_init, "$lt": date_end + timedelta(days=1)}},
+                {"bytes_recv": 1, "bytes_sent": 1, "_id": 0, "timestamp": 1}))
         if list_values:
             df = pd.DataFrame.from_records(list_values)
             df.set_index('timestamp', inplace=True)
@@ -213,8 +204,10 @@ def network_traffic_per_devices(buildings, date_init, date_end):
 
     for building in _buildings:
         df = pd.DataFrame(list(
-            network_usage.find({"building": building['building_id'], "timestamp": {"$gte": date_init, "$lt": date_end}},
-                               {"bytes_recv": 1, "bytes_sent": 1, "_id": 0, "timestamp": 1})))
+            network_usage.find(
+                {"building": building['building_id'],
+                 "timestamp": {"$gte": date_init, "$lt": date_end + timedelta(days=1)}},
+                {"bytes_recv": 1, "bytes_sent": 1, "_id": 0, "timestamp": 1})))
         df.set_index("timestamp", inplace=True)
         df.sort_index()
 
@@ -247,7 +240,8 @@ def loss_rate_per_building(buildings, date_init, date_end):
 
     for building in _buildings:
         logs = list(device_logs.find(
-            {"building_id": building['building_id'], "date": {"$gte": date_init, "$lt": date_end}}, {"_id": 0}))
+            {"building_id": building['building_id'], "date": {"$gte": date_init, "$lt": date_end + timedelta(days=1)}},
+            {"_id": 0}))
 
         # Without retries
         df = pd.DataFrame(logs)
@@ -298,7 +292,7 @@ def loss_rate_per_device(buildings, date_init, date_end):
     for building in _buildings:
         logs = list(device_logs.find(
             {"building_id": building['building_id'],
-             "date": {"$gte": date_init, "$lt": date_end}},
+             "date": {"$gte": date_init, "$lt": date_end + timedelta(days=1)}},
             {"_id": 0, 'date': 1, 'devices_logs': 1, 'successful': 1}))
 
         res = []

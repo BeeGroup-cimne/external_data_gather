@@ -1,6 +1,10 @@
 import base64
 import json
+import os
 
+from dotenv import load_dotenv
+
+load_dotenv()
 import requests
 
 
@@ -87,8 +91,8 @@ class Ixon:
 
 
 if __name__ == '__main__':
-    i = Ixon(application_id='<application_id>')
-    i.generate_token('<user>', '<password>')
+    i = Ixon(application_id=os.getenv("APPLICATION_ID"))
+    i.generate_token(os.getenv("EMAIL"), os.getenv("PASSWORD"))
     i.get_companies()
     i.get_agents()
 
@@ -102,5 +106,6 @@ if __name__ == '__main__':
                     values = {'ip_vpn': data['activeVpnSession']['vpnAddress'],
                               'network': data['config']['routerLan']['network'],
                               'deviceId': data['deviceId'],
+                              'description': data['description'],
                               'network_mask': data['config']['routerLan']['netMask']}
-                    print(values)
+                    print(f"{j['name']}: {values}")

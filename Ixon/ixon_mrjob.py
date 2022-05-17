@@ -121,6 +121,7 @@ class MRIxonJob(MRJob):
                 if not connected:
                     ixon_logs.insert_one(
                         {'building_id': value['deviceId'], "building_name": building_devices[0]['building_name'],
+                         'building_internal_id': building_devices[0]['building_internal_id'],
                          "info": "VPN Connection: Time out exceeded.",
                          "date": datetime.datetime.utcnow(), "successful": False})
                     try:
@@ -156,6 +157,7 @@ class MRIxonJob(MRJob):
                         netio = psutil.net_io_counters(pernic=True)
                         network_usage.insert_one(
                             {"from": 'infraestructures.cat', "building": value['deviceId'],
+                             'building_internal_id': building_devices[0]['building_internal_id'],
                              "timestamp": datetime.datetime.utcnow(),
                              "bytes_sent": netio[NETWORK_INTERFACE].bytes_sent,
                              "bytes_recv": netio[NETWORK_INTERFACE].bytes_recv})
@@ -166,6 +168,7 @@ class MRIxonJob(MRJob):
                     bacnet.disconnect()
                     ixon_logs.insert_one(
                         {'building_id': value['deviceId'], "building_name": building_devices[0]['building_name'],
+                         'building_internal_id': building_devices[0]['building_internal_id'],
                          "info": "BACnet Connection: Time out exceeded.",
                          "date": datetime.datetime.utcnow(), "successful": False})
                     continue
@@ -176,9 +179,8 @@ class MRIxonJob(MRJob):
                         device_value = bacnet.read(
                             f"{device['bacnet_device_ip']} {device['type']} {device['object_id']} presentValue")
 
-                        # TODO: save value['description']
-
                         results.append({"building": device['building_id'], "device": device['name'],
+                                        'building_internal_id': device['building_internal_id'],
                                         "timestamp": datetime.datetime.utcnow().timestamp(), "value": device_value,
                                         "type": device['type'], "description": device['description'],
                                         "object_id": device['object_id']})
@@ -197,6 +199,7 @@ class MRIxonJob(MRJob):
                     netio = psutil.net_io_counters(pernic=True)
                     network_usage.insert_one(
                         {"from": 'infraestructures.cat', "building": value['deviceId'],
+                         'building_internal_id': building_devices[0]['building_internal_id'],
                          "bytes_sent": netio[NETWORK_INTERFACE].bytes_sent,
                          "timestamp": datetime.datetime.utcnow(),
                          "bytes_recv": netio[NETWORK_INTERFACE].bytes_recv})
@@ -209,6 +212,7 @@ class MRIxonJob(MRJob):
 
                 ixon_logs.insert_one(
                     {'building_id': value['deviceId'], "building_name": building_devices[0]['building_name'],
+                     'building_internal_id': building_devices[0]['building_internal_id'],
                      "devices_logs": devices_logs,
                      "info": "OK",
                      "date": datetime.datetime.utcnow(), "successful": True})
@@ -223,7 +227,8 @@ class MRIxonJob(MRJob):
                                             {"v": {}, "info": {}})
 
                         save_to_hbase(htable, results,
-                                      [("v", ["value"]), ("info", ["type", "description", 'object_id'])],
+                                      [("v", ["value"]),
+                                       ("info", ["type", "description", 'object_id', 'building_internal_id'])],
                                       row_fields=['building', 'device', 'timestamp'])
                     except Exception as ex:
                         sys.stderr.write(str(ex))

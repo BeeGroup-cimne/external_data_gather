@@ -95,8 +95,8 @@ def generate_network_usage_total_per_day(date_init, date_end):
 
     df['total'] = (df['bytes_recv'] + df['bytes_sent']) / 1000
     df['building'] = df['building'].map(buildings)
-    df = df.groupby('building').resample('D').sum()
-    print(df)
+    df.set_index('timestamp', inplace=True)
+    return df.groupby('building').resample('D').sum()
 
 
 if __name__ == '__main__':
@@ -135,7 +135,15 @@ if __name__ == '__main__':
     dp_network_usage_per_device = generate_network_usage_per_device(
         date_init=date_init, date_end=date_end)
 
-    generate_network_usage_total_per_day(date_init=date_init, date_end=date_end)
+    df_network_usage_total_per_day = generate_network_usage_total_per_day(date_init=date_init,
+                                                                          date_end=date_end)
+
+    df_network_usage_total_per_day_plot = px.bar(df_network_usage_total_per_day,
+                                                 x=df_network_usage_total_per_day.index.get_level_values(1),
+                                                 y="total",
+                                                 color=df_network_usage_total_per_day.index.get_level_values(0),
+                                                 labels={"building": "Edificis", "total": "KBytes",
+                                                         "timestamp": "data"}, barmode='group')
 
     caption = f"# Informe Setmanal \nData Inci: {date_init.date()}\nData Fi: {date_end.date()}"
 
@@ -144,7 +152,10 @@ if __name__ == '__main__':
         dp.Text("## Tràfic de Dades"),
         dp.Plot(network_usage_plot),
         dp.Text("## Tràfic de Dades Per Dispositiu"),
-        *dp_network_usage_per_device
+        *dp_network_usage_per_device,
+        dp.Text("## Tràfic de Dades Diari"),
+        dp.Plot(df_network_usage_total_per_day_plot)
     )
 
     # report.save(path='report.html', open=True)
+    # report.upload('Report')

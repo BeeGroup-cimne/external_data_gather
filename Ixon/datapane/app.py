@@ -15,8 +15,8 @@ def generate_network_usage(date_init, date_end):
 
     df['total_KBytes'] = (df['bytes_recv'] + df['bytes_sent']) / 1000
     df['building'] = df['building'].map(buildings)
-
-    return df
+    return px.line(df, x='timestamp', y="total_KBytes", color="building",
+                   labels={"building": "Edificis", "total_KBytes": "KBytes", "timestamp": "data"})
 
 
 def get_buildings():
@@ -96,13 +96,27 @@ def generate_network_usage_total_per_day(date_init, date_end):
     df['total'] = (df['bytes_recv'] + df['bytes_sent']) / 1000
     df['building'] = df['building'].map(buildings)
     df.set_index('timestamp', inplace=True)
-    return df.groupby('building').resample('D').sum()
+    df = df.groupby('building').resample('D').sum()
+
+    return px.bar(df,
+                  x=df.index.get_level_values(1),
+                  y="total",
+                  color=df.index.get_level_values(0),
+                  labels={"building": "Edificis", "total": "KBytes",
+                          "timestamp": "data"}, barmode='group')
 
 
 def generate_request_per_building(date_init, date_end):
     df = pd.DataFrame(list(logs.find({"date": {"$gte": date_init, "$lt": date_end + timedelta(days=1)}}, {"_id": 0})))
     df.set_index('date', inplace=True)
-    return df.groupby('building_name').resample('D').sum()
+    df = df.groupby('building_name').resample('D').sum()
+
+    return px.bar(df,
+                  x=df.index.get_level_values(1),
+                  y="successful",
+                  color=df.index.get_level_values(0),
+                  labels={"color": "Edificis", "successful": "Peticions Realitzades", "x": "Data",
+                          "date": "data"}, barmode='group', text_auto=True)
 
 
 def generate_request_per_devices(date_init, date_end):
@@ -134,6 +148,15 @@ def generate_request_per_devices(date_init, date_end):
 
     df.set_index("date", inplace=True)
     df.sort_index()
+    df['calc'] = (df['successful_req'] * 100) / df['num_devices']
+    df = df.groupby('building_name').resample('D').mean()
+    df = df.round(1)
+    return px.bar(df,
+                  x=df.index.get_level_values(1),
+                  y="calc",
+                  color=df.index.get_level_values(0),
+                  labels={"color": "Edificis", "calc": "Èxit de recuperació (%)",
+                          "date": "data"}, barmode='group', text_auto=True)
 
 
 if __name__ == '__main__':
@@ -164,49 +187,30 @@ if __name__ == '__main__':
     buildings = get_buildings()
 
     # Network Usage Plot
-    df_network_usage = generate_network_usage(date_init=date_init, date_end=date_end)
+    pd_network_usage = generate_network_usage(date_init=date_init, date_end=date_end)
 
-    network_usage_plot = px.line(df_network_usage, x='timestamp', y="total_KBytes", color="building",
-                                 labels={"building": "Edificis", "total_KBytes": "KBytes", "timestamp": "data"})
+    dp_network_usage_per_device = generate_network_usage_per_device(date_init=date_init, date_end=date_end)
 
-    # Network Usage Per Device Plot
-
-    dp_network_usage_per_device = generate_network_usage_per_device(
-
-        date_init=date_init, date_end=date_end)
-
-    df_network_usage_total_per_day = generate_network_usage_total_per_day(date_init=date_init,
+    dp_network_usage_total_per_day = generate_network_usage_total_per_day(date_init=date_init,
                                                                           date_end=date_end)
 
-    df_network_usage_total_per_day_plot = px.bar(df_network_usage_total_per_day,
-                                                 x=df_network_usage_total_per_day.index.get_level_values(1),
-                                                 y="total",
-                                                 color=df_network_usage_total_per_day.index.get_level_values(0),
-                                                 labels={"building": "Edificis", "total": "KBytes",
-                                                         "timestamp": "data"}, barmode='group')
-
-    df_req_building = generate_request_per_building(date_init=date_init, date_end=date_end)
-
-    df_req_building_plot = px.bar(df_req_building,
-                                  x=df_req_building.index.get_level_values(1),
-                                  y="successful",
-                                  color=df_req_building.index.get_level_values(0),
-                                  labels={"building_name": "Edificis", "sucessful": "Peticions",
-                                          "date": "data"}, barmode='group', text_auto=True)
+    dp_req_devices = generate_request_per_devices(date_init=date_init, date_end=date_end)
 
     caption = f"# Informe Setmanal \nData Inci: {date_init.date()}\nData Fi: {date_end.date()}"
 
     report = dp.Report(
         dp.Text(caption),
-        dp.Text("## Tràfic de Dades"),
-        dp.Plot(network_usage_plot),
-        dp.Text("## Tràfic de Dades Per Dispositiu"),
-        *dp_network_usage_per_device,
-        dp.Text("## Tràfic de Dades Diari"),
-        dp.Plot(df_network_usage_total_per_day_plot),
-        dp.Text("## Comunicació TC_Sistema"),
-        dp.Plot(df_req_building_plot)
+        dp.Text("## Indicadors comunicació TC_Sistema"),
+        dp.Plot(generate_request_per_building(date_init=date_init, date_end=date_end)),
+        dp.Text("## Indicadors comunicació TC_Dispositiu"),
+        dp.Plot(dp_req_devices),
+        dp.Text("## Indicadors tràfic dades"),
+        dp.Plot(pd_network_usage),
+        dp.Plot(dp_network_usage_total_per_day),
+        dp.Text("## Indicadors tràfic dades per dispositiu"),
+        *dp_network_usage_per_device
+
     )
 
     report.save(path='report.html', open=True)
-    report.upload('Report')
+    # report.upload('Report')

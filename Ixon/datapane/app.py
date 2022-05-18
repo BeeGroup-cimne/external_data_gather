@@ -99,6 +99,43 @@ def generate_network_usage_total_per_day(date_init, date_end):
     return df.groupby('building').resample('D').sum()
 
 
+def generate_request_per_building(date_init, date_end):
+    df = pd.DataFrame(list(logs.find({"date": {"$gte": date_init, "$lt": date_end + timedelta(days=1)}}, {"_id": 0})))
+    df.set_index('date', inplace=True)
+    return df.groupby('building_name').resample('D').sum()
+
+
+def generate_request_per_devices(date_init, date_end):
+    df = pd.DataFrame(list(logs.aggregate([
+        {"$match": {"date": {"$gte": date_init, "$lt": date_end + timedelta(days=1)}}},
+        {
+            "$project": {
+                "successful_req": {
+                    "$size": {
+                        "$filter": {
+                            "input": "$devices_logs",
+                            "as": "el",
+                            "cond": {"$eq": ["$$el.successful", True]}
+                        }
+                    }
+                },
+                "num_devices": {
+                    "$cond": {
+                        "if": {"$isArray": "$devices_logs"}, "then": {"$size": "$devices_logs"}, "else": 0
+                    }
+                },
+                "building_id": 1,
+                "building_name": 1,
+                "date": 1,
+                "_id": 0
+            }
+        }
+    ])))
+
+    df.set_index("date", inplace=True)
+    df.sort_index()
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
 
@@ -111,10 +148,12 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     date_init = datetime.strptime(args.init_date, "%Y/%m/%d")
+    date_init = datetime.strptime("2022/05/06", "%Y/%m/%d")
     date_end = datetime.strptime(args.end_date, "%Y/%m/%d")
+    date_end = datetime.strptime("2022/05/15", "%Y/%m/%d")
 
     # MongoDB Connection
-    config = get_json_config('../config.json')
+    config = get_json_config('/Users/francesc/Desktop/external_data_gather/Ixon/config.json')
     db = connection_mongo(config['mongo_db'])
 
     logs = db['ixon_logs']
@@ -133,6 +172,7 @@ if __name__ == '__main__':
     # Network Usage Per Device Plot
 
     dp_network_usage_per_device = generate_network_usage_per_device(
+
         date_init=date_init, date_end=date_end)
 
     df_network_usage_total_per_day = generate_network_usage_total_per_day(date_init=date_init,
@@ -145,6 +185,15 @@ if __name__ == '__main__':
                                                  labels={"building": "Edificis", "total": "KBytes",
                                                          "timestamp": "data"}, barmode='group')
 
+    df_req_building = generate_request_per_building(date_init=date_init, date_end=date_end)
+
+    df_req_building_plot = px.bar(df_req_building,
+                                  x=df_req_building.index.get_level_values(1),
+                                  y="successful",
+                                  color=df_req_building.index.get_level_values(0),
+                                  labels={"building_name": "Edificis", "sucessful": "Peticions",
+                                          "date": "data"}, barmode='group', text_auto=True)
+
     caption = f"# Informe Setmanal \nData Inci: {date_init.date()}\nData Fi: {date_end.date()}"
 
     report = dp.Report(
@@ -154,8 +203,10 @@ if __name__ == '__main__':
         dp.Text("## Tràfic de Dades Per Dispositiu"),
         *dp_network_usage_per_device,
         dp.Text("## Tràfic de Dades Diari"),
-        dp.Plot(df_network_usage_total_per_day_plot)
+        dp.Plot(df_network_usage_total_per_day_plot),
+        dp.Text("## Comunicació TC_Sistema"),
+        dp.Plot(df_req_building_plot)
     )
 
-    # report.save(path='report.html', open=True)
-    # report.upload('Report')
+    report.save(path='report.html', open=True)
+    report.upload('Report')

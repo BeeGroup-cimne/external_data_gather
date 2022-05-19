@@ -1,11 +1,21 @@
-import argparse
-from datetime import datetime, timedelta
+import json
+from datetime import timedelta, date, datetime
 
 import datapane as dp
 import pandas as pd
 import plotly.express as px
+from pymongo import MongoClient
 
-from utils import get_json_config, connection_mongo
+
+def connection_mongo(config):
+    cli = MongoClient("mongodb://{user}:{pwd}@{host}:{port}/{db}".format(**config))
+    db = cli[config['db']]
+    return db
+
+
+def get_json_config(path):
+    file = open(path, "r")
+    return json.load(file)
 
 
 def generate_network_usage(date_init, date_end):
@@ -16,7 +26,7 @@ def generate_network_usage(date_init, date_end):
     df['total_KBytes'] = (df['bytes_recv'] + df['bytes_sent']) / 1000
     df['building'] = df['building'].map(buildings)
     return px.line(df, x='timestamp', y="total_KBytes", color="building",
-                   labels={"building": "Edificis", "total_KBytes": "KBytes", "timestamp": "data"})
+                   labels={"building": "Edifici/s", "total_KBytes": "KBytes", "timestamp": "Data"})
 
 
 def get_buildings():
@@ -81,8 +91,9 @@ def generate_network_usage_per_device(date_init, date_end):
             network_usage_per_device_plot = px.line(i['data'], x='timestamp', y='device_mean',
                                                     color='building',
                                                     title=i['label'],
-                                                    labels={"building": "Edificis", "device_mean": "dispositiu/KBytes",
-                                                            "timestamp": "data"}, hover_name="building",
+                                                    labels={"building": "Edifici/s", "device_mean": "Disp./KBytes",
+                                                            "timestamp": "Data", "num_devices": "Nº Disp."},
+                                                    hover_name="building",
                                                     hover_data=["device_mean", "num_devices"])
             x.append(dp.Plot(network_usage_per_device_plot))
     return x
@@ -97,17 +108,19 @@ def generate_network_usage_total_per_day(date_init, date_end):
     df['building'] = df['building'].map(buildings)
     df.set_index('timestamp', inplace=True)
     df = df.groupby('building').resample('D').sum()
+    df = df.round()
 
     return px.bar(df,
                   x=df.index.get_level_values(1),
                   y="total",
                   color=df.index.get_level_values(0),
-                  labels={"building": "Edificis", "total": "KBytes",
-                          "timestamp": "data"}, barmode='group')
+                  labels={"color": "Edificis", "total": "KBytes",
+                          "timestamp": "Data", "x": "Data"}, barmode='group', text_auto=True)
 
 
 def generate_request_per_building(date_init, date_end):
-    df = pd.DataFrame(list(logs.find({"date": {"$gte": date_init, "$lt": date_end + timedelta(days=1)}}, {"_id": 0})))
+    df = pd.DataFrame(list(
+        logs.find({"successful": True, "date": {"$gte": date_init, "$lt": date_end + timedelta(days=1)}}, {"_id": 0})))
     df.set_index('date', inplace=True)
     df = df.groupby('building_name').resample('D').sum()
 
@@ -115,7 +128,7 @@ def generate_request_per_building(date_init, date_end):
                   x=df.index.get_level_values(1),
                   y="successful",
                   color=df.index.get_level_values(0),
-                  labels={"color": "Edificis", "successful": "Peticions Realitzades", "x": "Data",
+                  labels={"color": "Edifici/s", "successful": "Peticions amb èxit", "x": "Data",
                           "date": "data"}, barmode='group', text_auto=True)
 
 
@@ -155,28 +168,31 @@ def generate_request_per_devices(date_init, date_end):
                   x=df.index.get_level_values(1),
                   y="calc",
                   color=df.index.get_level_values(0),
-                  labels={"color": "Edificis", "calc": "Èxit de recuperació (%)",
+                  labels={"color": "Edifici/s", "calc": "Èxit de recuperació (%)",
+                          "x": "Data",
                           "date": "data"}, barmode='group', text_auto=True)
 
 
+# def send_email():
+#     if os.path.exists('report.html'):
+#         smtp_server = "smtp.gmail.com"
+#         port = 587  # For starttls
+#         sender_email = "my@gmail.com"
+#         password = input("Type your password and press enter: ")
+#
+#         context = ssl.create_default_context()
+
+
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
+    date_init = date.today() - timedelta(days=date.today().weekday())
+    date_init = datetime.combine(date_init, datetime.min.time())
+    date_end = date_init + timedelta(days=6)
 
-    parser.add_argument("-i", "--init_date", required=True, type=str,
-                        help="Date with the format: yyyy/mm/dd, 2021/05/23")
-
-    parser.add_argument("-e", "--end_date", required=True, type=str,
-                        help="Date with the format: yyyy/mm/dd, 2021/05/23")
-
-    args = parser.parse_args()
-
-    date_init = datetime.strptime(args.init_date, "%Y/%m/%d")
-    date_init = datetime.strptime("2022/05/06", "%Y/%m/%d")
-    date_end = datetime.strptime(args.end_date, "%Y/%m/%d")
-    date_end = datetime.strptime("2022/05/15", "%Y/%m/%d")
+    # date_init = datetime.strptime("2022/05/06", "%Y/%m/%d")
+    # date_end = datetime.strptime("2022/05/15", "%Y/%m/%d")
 
     # MongoDB Connection
-    config = get_json_config('/Users/francesc/Desktop/external_data_gather/Ixon/config.json')
+    config = get_json_config('config.json')
     db = connection_mongo(config['mongo_db'])
 
     logs = db['ixon_logs']
@@ -186,31 +202,20 @@ if __name__ == '__main__':
     # Get buildings
     buildings = get_buildings()
 
-    # Network Usage Plot
-    pd_network_usage = generate_network_usage(date_init=date_init, date_end=date_end)
-
-    dp_network_usage_per_device = generate_network_usage_per_device(date_init=date_init, date_end=date_end)
-
-    dp_network_usage_total_per_day = generate_network_usage_total_per_day(date_init=date_init,
-                                                                          date_end=date_end)
-
-    dp_req_devices = generate_request_per_devices(date_init=date_init, date_end=date_end)
-
-    caption = f"# Informe Setmanal \nData Inci: {date_init.date()}\nData Fi: {date_end.date()}"
+    caption = f"# Informe Setmanal \nData Inci: {date_init}\nData Fi: {date_end.replace(hour=23, minute=59, second=59)}"
 
     report = dp.Report(
         dp.Text(caption),
         dp.Text("## Indicadors comunicació TC_Sistema"),
         dp.Plot(generate_request_per_building(date_init=date_init, date_end=date_end)),
         dp.Text("## Indicadors comunicació TC_Dispositiu"),
-        dp.Plot(dp_req_devices),
+        dp.Plot(generate_request_per_devices(date_init=date_init, date_end=date_end)),
         dp.Text("## Indicadors tràfic dades"),
-        dp.Plot(pd_network_usage),
-        dp.Plot(dp_network_usage_total_per_day),
+        dp.Plot(generate_network_usage(date_init=date_init, date_end=date_end)),
+        dp.Plot(generate_network_usage_total_per_day(date_init=date_init, date_end=date_end)),
         dp.Text("## Indicadors tràfic dades per dispositiu"),
-        *dp_network_usage_per_device
-
+        *generate_network_usage_per_device(date_init=date_init, date_end=date_end)
     )
 
     report.save(path='report.html', open=True)
-    # report.upload('Report')
+    #report.upload('Report')

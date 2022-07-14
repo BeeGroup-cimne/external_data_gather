@@ -185,14 +185,14 @@ def generate_request_per_devices(date_init, date_end):
 
 if __name__ == '__main__':
     date_init = date.today() - timedelta(days=date.today().weekday())
-    date_init = datetime.combine(date_init, datetime.min.time())
+    date_init = datetime.combine(date_init, datetime.min.time()) - timedelta(days=7)
     date_end = date_init + timedelta(days=6)
 
     # date_init = datetime.strptime("2022/05/06", "%Y/%m/%d")
     # date_end = datetime.strptime("2022/05/15", "%Y/%m/%d")
 
     # MongoDB Connection
-    config = get_json_config('config.json')
+    config = get_json_config('../config.json')
     db = connection_mongo(config['mongo_db'])
 
     logs = db['ixon_logs']
@@ -217,5 +217,7 @@ if __name__ == '__main__':
         *generate_network_usage_per_device(date_init=date_init, date_end=date_end)
     )
 
-    report.save(path='report.html', open=True)
-    #report.upload('Report')
+    report_name = f'informe_{date_end.date()}_{date_end.date()}'
+    # report.save(path=report_name + '.html')
+    report.upload(report_name, publicly_visible=True)
+    link = report.url.replace("api/", "") + report_name

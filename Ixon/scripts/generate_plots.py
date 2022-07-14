@@ -115,7 +115,7 @@ def device_plot(devices, date_init, date_end):
             except:
                 value = np.NAN
             list1.append({"ts": ts, "v": value})
-
+        print(list1)
         if len(list1) <= 0:
             continue
 

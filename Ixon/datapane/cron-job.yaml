@@ -1,0 +1,37 @@
+apiVersion: batch/v1beta1
+kind: CronJob
+metadata:
+  name: report-cronjob
+spec:
+  suspend: false
+  schedule: "0 0 * * 1"
+  successfulJobsHistoryLimit: 0
+  failedJobsHistoryLimit: 0
+  startingDeadlineSeconds: 180
+  jobTemplate:
+    spec:
+      activeDeadlineSeconds: 540
+      template:
+        spec:
+          containers:
+            - name: ixon-job
+              image: docker.tech.beegroup-cimne.com/admin/job-ixon:latest
+              imagePullPolicy: IfNotPresent
+              #command: ["/bin/sleep", "3650d"]
+              command: [ "python3", "app.py" ]
+              volumeMounts:
+                - name: ixon-config
+                  mountPath: /home/ubuntu/ixon_mr/config.json
+                  subPath: config.json
+
+          volumes:
+            - name: ixon-config
+              secret:
+                secretName: ixon-secrets
+                items:
+                  - key: config.json
+                    path: config.json
+
+          restartPolicy: OnFailure
+          imagePullSecrets:
+            - name: registrypullsecret

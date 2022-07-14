@@ -95,6 +95,7 @@ if __name__ == '__main__':
     i.generate_token(os.getenv("EMAIL"), os.getenv("PASSWORD"))
     i.get_companies()
     i.get_agents()
+    result_data = {}
 
     for j in i.agents[:]:
         res = i.get_network_config(j['publicId'])
@@ -103,9 +104,11 @@ if __name__ == '__main__':
             data = res['data']
             if 'deviceId' in data:
                 if data['activeVpnSession'] and data['config'] and data['config']['routerLan']:
-                    values = {'ip_vpn': data['activeVpnSession']['vpnAddress'],
-                              'network': data['config']['routerLan']['network'],
-                              'deviceId': data['deviceId'],
-                              'description': data['description'],
-                              'network_mask': data['config']['routerLan']['netMask']}
-                    print(f"{j['name']}: {values}")
+                    result_data.update({data['description']: {'ip_vpn': data['activeVpnSession']['vpnAddress'],
+                                                              'network': data['config']['routerLan']['network'],
+                                                              'name': j['name'],
+                                                              'deviceId': data['deviceId'],
+                                                              'description': data['description'],
+                                                              'network_mask': data['config']['routerLan']['netMask']}})
+    with(open('buildings.json', 'w')) as file:
+        json.dump(result_data, file, indent=4)
